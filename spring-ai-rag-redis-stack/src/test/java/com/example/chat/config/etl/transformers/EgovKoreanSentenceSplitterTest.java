@@ -268,4 +268,25 @@ class EgovKoreanSentenceSplitterTest {
             });
         }
     }
+
+    @Test
+    @DisplayName("청크 크기가 보충면 문자 하나보다 작으면 코드포인트 하나를 그대로 내보낸다")
+    void emitsSingleCodePointWhenChunkSizeIsSmallerThanOneCharacter() {
+        String text = "\uD840\uDC0B\uD842\uDF9F".repeat(20);
+
+        for (int chunkSize : new int[] {1, 2}) {
+            List<String> chunks = splitter(chunkSize).split(List.of(new Document(text))).stream()
+                    .map(Document::getText)
+                    .toList();
+
+            assertThat(chunks).isNotEmpty();
+            // 보충면 문자 하나는 UTF-16 두 글자, CL100K 기준 세 토큰이므로 한도를 지킬 창이 없다.
+            // 분할이 끝나도록 코드포인트 하나를 내보내고, 그 결과 토큰 수가 한도를 넘는다.
+            assertThat(chunks).allSatisfy(chunk -> {
+                assertThat(text).contains(chunk);
+                assertThat(chunk.codePointCount(0, chunk.length())).isEqualTo(1);
+                assertThat(countTokens(chunk)).isGreaterThan(chunkSize);
+            });
+        }
+    }
 }

@@ -18,7 +18,8 @@ import org.springframework.ai.transformer.splitter.TokenTextSplitter;
  * {@link TokenTextSplitter} 와 동일한 CL100K_BASE 토크나이저로 청크 크기를 판정한다.
  * 청크는 원문 부분문자열이며 개행·표 구조가 보존된다.
  * 단일 문장이 청크 한도를 넘으면 원문 offset 창으로 잘라 나눠 모델 입력 한도를 지키면서도
- * 청크가 원문 부분문자열로 남게 한다. 기존 {@link TokenTextSplitter} 와의 정합을 위해
+ * 청크가 원문 부분문자열로 남게 한다. 보충면 문자 하나가 한도를 넘는 극단 설정(청크 크기 1~2)에서는
+ * 어떤 창도 한도에 맞지 않으므로 코드포인트 하나를 그대로 내보내 분할이 끝나도록 한다. 기존 {@link TokenTextSplitter} 와의 정합을 위해
  * 오버랩은 두지 않는다.</p>
  */
 public class EgovKoreanSentenceSplitter extends TokenTextSplitter {
