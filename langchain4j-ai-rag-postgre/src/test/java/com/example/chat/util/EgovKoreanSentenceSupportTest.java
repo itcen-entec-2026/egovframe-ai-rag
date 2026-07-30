@@ -25,6 +25,22 @@ class EgovKoreanSentenceSupportTest {
     }
 
     @Test
+    @DisplayName("날짜 표기·라틴 이니셜은 문장 파편으로 자르지 않는다")
+    void keepDateAndLatinInitialInSameSentence() {
+        assertThat(EgovKoreanSentenceSupport.splitSentences("회의는 2026. 7. 30. 개최한다. 참석자는 다음과 같다."))
+                .containsExactly("회의는 2026. 7. 30. 개최한다.", "참석자는 다음과 같다.");
+        assertThat(EgovKoreanSentenceSupport.splitSentences("담당자는 A. B. 홍길동입니다. 확인 바랍니다."))
+                .containsExactly("담당자는 A. B. 홍길동입니다.", "확인 바랍니다.");
+    }
+
+    @Test
+    @DisplayName("종결어미로 끝난 문장은 다음 문장이 종결어미와 같은 글자로 시작해도 분리한다")
+    void splitSentenceBeforeWordStartingWithEndingSyllable() {
+        assertThat(EgovKoreanSentenceSupport.splitSentences("보고서를 제출한다. 하고자 하는 업무는 별도로 정한다."))
+                .containsExactly("보고서를 제출한다.", "하고자 하는 업무는 별도로 정한다.");
+    }
+
+    @Test
     @DisplayName("소수점과 버전 표기는 문장 경계로 보지 않는다")
     void keepDecimalAndVersionInSameSentence() {
         String text = "값은 3.14입니다. 버전은 1.0.1입니다.";
@@ -60,18 +76,15 @@ class EgovKoreanSentenceSupportTest {
 
         List<String> sentences = EgovKoreanSentenceSupport.splitSentences(text);
 
+        // 종결어미가 아닌 글자·숫자 뒤 마침표는 경계로 보지 않는다. 두 문장이 한 구간에 남아도
+        // 청크는 원문 offset을 잘라내므로 내용이 훼손되지 않는다.
         assertThat(sentences).containsExactly(
                 "1. 항목입니다.",
                 "- 2. 하위 항목입니다.",
                 "제1. 서수 항목입니다.",
-                "이 규정은 제3조제1항.",
-                "다음 조항을 따른다.",
-                "적용 범위는 제2조.",
-                "세부는 별표 참조.",
-                "총 금액은 100.",
-                "이는 부가세 별도다.",
-                "제2항.",
-                "설명입니다."
+                "이 규정은 제3조제1항. 다음 조항을 따른다.",
+                "적용 범위는 제2조. 세부는 별표 참조. 총 금액은 100. 이는 부가세 별도다.",
+                "제2항. 설명입니다."
         );
     }
 

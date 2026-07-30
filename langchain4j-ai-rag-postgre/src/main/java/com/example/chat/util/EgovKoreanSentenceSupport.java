@@ -2,32 +2,20 @@ package com.example.chat.util;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
 
 /**
  * 한국어 문장 경계를 결정론적으로 분리하는 유틸리티.
  *
- * <p>종결부호({@code . ! ? 。 ！ ？})와 닫는 인용/괄호를 함께 문장 끝으로 보고,
- * 소수점·목록 번호·라틴 약어는 문장 경계에서 제외한다. 한국어 종결어미 뒤의 종결부호는
- * 다음 문장과 공백이 없어도 경계로 인정하며, 빈 줄과 일부 마크다운 블록 시작 줄은 문단/블록
- * 경계로 처리한다. LLM·외부 사전 없이 결정론적으로 동작한다.</p>
+ * <p>경계 판정은 보수적이다. 빈 줄과 마크다운 블록 시작 줄을 문단·블록 경계로 보고,
+ * 마침표는 한국어 종결어미 뒤에 오고 다음이 공백·개행·문서 끝일 때만 문장 끝으로 본다.
+ * 그 밖의 마침표(날짜 표기·소수점·라틴 약어·목록 번호·법령 조항 등)는 경계로 보지 않는다.
+ * 물음표·느낌표는 표기 모호성이 없어 공백·개행·문서 끝이 이어지면 경계로 본다.</p>
+ *
+ * <p>경계를 놓치면 두 문장이 한 구간으로 남을 뿐이고, 청크는 원문 offset을 그대로 잘라내므로
+ * 내용이 훼손되지 않는다. 반대로 경계를 잘못 만들면 문장이 중간에서 끊어지므로, 확신이 없는
+ * 마침표는 자르지 않는다. LLM·외부 사전 없이 결정론적으로 동작한다.</p>
  */
 public final class EgovKoreanSentenceSupport {
-
-    private static final Set<String> ABBREVIATIONS = Set.of(
-            "no", "etc", "eg", "ie", "vs", "cf", "fig", "tbl", "ex",
-            "mr", "mrs", "ms", "dr", "prof", "inc", "ltd", "co", "corp",
-            "dept", "approx", "pp", "vol", "sec",
-            "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept",
-            "oct", "nov", "dec",
-            "a.m", "a.m.", "p.m", "p.m.", "e.g", "e.g.", "i.e", "i.e.",
-            "u.s", "u.s."
-    );
-    private static final List<String> QUOTE_PARTICLES = List.of(
-            "이라면서", "이라며", "이라는", "이라고", "라면서", "라고요",
-            "라고", "라며", "라는", "라던", "하고"
-    );
 
     private EgovKoreanSentenceSupport() {
     }
@@ -54,10 +42,11 @@ public final class EgovKoreanSentenceSupport {
         int index = 0;
 
         while (index < text.length()) {
-            if (isCodeFenceLineStart(text, index)) {
+            CodeFence fence = codeFenceAt(text, index);
+            if (fence != null) {
                 // 코드펜스 내부의 마침표는 코드 조각일 수 있으므로 블록 전체를 하나의 구간으로 고정한다.
                 addSentenceSpan(spans, text, sentenceStart, index);
-                int fenceEnd = consumeCodeFenceBlock(text, index);
+                int fenceEnd = consumeCodeFenceBlock(text, index, fence);
                 addSentenceSpan(spans, text, index, fenceEnd);
                 sentenceStart = fenceEnd;
                 index = fenceEnd;
@@ -124,49 +113,36 @@ public final class EgovKoreanSentenceSupport {
             runEnd++;
         }
 
+        // 종결부호 후보 런 전체를 한 번에 소비해 "..."나 "?!"에서 빈 문장이 생기지 않게 한다.
+        // 닫는 인용/괄호는 앞 문장의 일부이므로 종결부호 뒤에 붙은 경우 함께 포함한다.
         int boundaryEnd = runEnd;
         while (boundaryEnd < text.length() && isClosingQuoteOrBracket(text.charAt(boundaryEnd))) {
             boundaryEnd++;
         }
+        boolean consumedClosingQuote = boundaryEnd > runEnd;
 
-        char terminator = text.charAt(terminatorStart);
         char previous = previousChar(text, terminatorStart);
         char next = nextChar(text, boundaryEnd);
+        boolean followedByBreak = next == '\0' || Character.isWhitespace(next);
+        boolean boundary;
 
-        // 종결부호 후보 런 전체를 한 번에 소비해 "..."나 "?!"에서 빈 문장이 생기지 않게 한다.
-        // 닫는 인용/괄호는 앞 문장의 일부이므로 종결부호 뒤에 붙은 경우 함께 포함한다.
-        boolean boundary = false;
-
-        // 기본 경계는 다음 문자가 공백이거나 문자열 끝인 경우로 제한해 URL·확장자·소수 오인을 줄인다.
-        if (next == '\0' || Character.isWhitespace(next)) {
-            boundary = true;
+        if (text.charAt(terminatorStart) == '.') {
+            // 마침표는 날짜 표기·소수점·약어·목록 번호와 구분되지 않으므로 한국어 종결어미 뒤에서만 경계로 본다.
+            boundary = isKoreanSentenceEnding(previous) && followedByBreak;
+        } else {
+            // 물음표·느낌표는 다른 표기로 쓰이지 않아 뒤에 공백·개행·문서 끝이 오면 경계로 본다.
+            boundary = followedByBreak;
         }
 
-        if (terminator == '.') {
-            // 숫자 사이의 마침표는 소수점 또는 버전 표기일 가능성이 높아 경계로 보지 않는다.
-            if (Character.isDigit(previous) && Character.isDigit(next)) {
-                boundary = false;
-            }
-
-            // 줄 시작의 숫자열과 제+숫자 뒤 마침표만 목록 번호·서수 표기로 보고 문장 경계에서 제외한다.
-            if (isNumberedListMarker(text, terminatorStart)) {
-                boundary = false;
-            }
-
-            // 라틴 약어 뒤 마침표는 문장 내부 표기이므로 대소문자와 내부 마침표를 정규화해 제외한다.
-            if (isAbbreviation(text, terminatorStart)) {
-                boundary = false;
-            }
-        }
-
-        // 한국어 종결어미 뒤 마침표는 공백 없이 다음 한글 문장이 이어져도 경계로 인정한다.
-        if (!boundary && isKoreanSentenceEnding(previous) && isSafeNoSpaceNext(next)) {
-            boundary = true;
-        }
-
-        // 닫는 인용 뒤 조사(라고/라며 등)는 앞 인용문을 받는 문장 성분이므로 경계로 자르지 않는다.
-        if (boundary && isFollowedByQuoteParticle(text, boundaryEnd)) {
+        // 인용문을 닫은 뒤 같은 줄에 한국어가 이어지면 인용을 받는 문장 성분(라고 말했다)이므로 자르지 않는다.
+        if (boundary && consumedClosingQuote && continuesWithHangulOnSameLine(text, boundaryEnd)) {
             boundary = false;
+        }
+
+        // 공백 없이 다음 문장이 붙는 표기도 종결어미 뒤라면 경계로 인정한다.
+        // 닫는 인용을 소비한 경우는 위와 같은 이유로 제외한다.
+        if (!boundary && !consumedClosingQuote && isKoreanSentenceEnding(previous) && isSafeNoSpaceNext(next)) {
+            boundary = true;
         }
 
         return new SentenceBoundary(boundary, boundaryEnd);
@@ -244,37 +220,41 @@ public final class EgovKoreanSentenceSupport {
         return numberEnd < text.length() && (text.charAt(numberEnd) == '.' || text.charAt(numberEnd) == ')');
     }
 
-    private static boolean isCodeFenceLineStart(String text, int start) {
+    // 코드펜스 여는 줄이면 마커 문자와 길이를 돌려준다. 백틱과 물결표를 모두 인식한다.
+    private static CodeFence codeFenceAt(String text, int start) {
         if (!isAtLineStart(text, start)) {
-            return false;
+            return null;
         }
-        return codeFenceMarkerIndex(text, start) >= 0;
+
+        int index = skipHorizontalWhitespace(text, start);
+        if (index >= text.length()) {
+            return null;
+        }
+
+        char marker = text.charAt(index);
+        if (marker != '`' && marker != '~') {
+            return null;
+        }
+
+        int length = 0;
+        while (index + length < text.length() && text.charAt(index + length) == marker) {
+            length++;
+        }
+        return length >= 3 ? new CodeFence(marker, length) : null;
     }
 
-    private static int consumeCodeFenceBlock(String text, int fenceLineStart) {
-        int nextLineStart = nextLineStart(text, fenceLineStart);
-        int search = nextLineStart;
+    private static int consumeCodeFenceBlock(String text, int fenceLineStart, CodeFence opening) {
+        int search = nextLineStart(text, fenceLineStart);
         while (search < text.length()) {
-            if (isCodeFenceLineStart(text, search)) {
+            CodeFence closing = codeFenceAt(text, search);
+            // 닫는 펜스는 여는 펜스와 같은 문자이고 길이가 같거나 길어야 한다(네 겹 백틱 블록의 조기 종료 방지).
+            if (closing != null && closing.marker() == opening.marker() && closing.length() >= opening.length()) {
                 // 닫는 펜스 줄 끝까지만 포함하고 뒤 개행은 문장 사이 공백으로 남긴다.
                 return lineEnd(text, search);
             }
             search = nextLineStart(text, search);
         }
         return text.length();
-    }
-
-    private static int codeFenceMarkerIndex(String text, int lineStart) {
-        int index = lineStart;
-        while (index < text.length()) {
-            char ch = text.charAt(index);
-            if (ch == ' ' || ch == '\t') {
-                index++;
-                continue;
-            }
-            break;
-        }
-        return startsWith(text, index, "```") ? index : -1;
     }
 
     private static int lineEnd(String text, int index) {
@@ -308,85 +288,6 @@ public final class EgovKoreanSentenceSupport {
         return index == 0 || isLineBreak(text.charAt(index - 1));
     }
 
-    private static boolean isNumberedListMarker(String text, int dotIndex) {
-        char afterDot = nextChar(text, dotIndex + 1);
-        if (afterDot != '\0' && !Character.isWhitespace(afterDot)) {
-            return false;
-        }
-
-        int markerStart = listMarkerStart(text, dotIndex);
-        if (markerStart < 0) {
-            return false;
-        }
-
-        if (isKoreanOrdinalMarker(text, markerStart, dotIndex)) {
-            return true;
-        }
-
-        if (!Character.isDigit(text.charAt(markerStart))) {
-            return false;
-        }
-
-        for (int i = markerStart; i < dotIndex; i++) {
-            if (!Character.isDigit(text.charAt(i))) {
-                return false;
-            }
-        }
-        return markerStart < dotIndex;
-    }
-
-    private static int listMarkerStart(String text, int dotIndex) {
-        int index = lineStart(text, dotIndex);
-        index = skipHorizontalWhitespace(text, index);
-
-        while (index < dotIndex && isMarkdownListQuoteMarker(text.charAt(index))) {
-            int afterMarker = index + 1;
-            if (afterMarker >= dotIndex || !isHorizontalWhitespace(text.charAt(afterMarker))) {
-                break;
-            }
-            // 줄 시작 불릿/인용 접두어 뒤 공백은 목록번호의 시각적 들여쓰기라서 같은 패턴으로 본다.
-            index = skipHorizontalWhitespace(text, afterMarker);
-        }
-
-        return index < dotIndex ? index : -1;
-    }
-
-    private static boolean isKoreanOrdinalMarker(String text, int markerStart, int dotIndex) {
-        if (text.charAt(markerStart) != '제' || markerStart + 1 >= dotIndex) {
-            return false;
-        }
-
-        for (int i = markerStart + 1; i < dotIndex; i++) {
-            if (!Character.isDigit(text.charAt(i))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static boolean isMarkdownListQuoteMarker(char ch) {
-        return ch == '-' || ch == '*' || ch == '>';
-    }
-
-    private static boolean isAbbreviation(String text, int dotIndex) {
-        int start = dotIndex - 1;
-        while (start >= 0) {
-            char ch = text.charAt(start);
-            if (isLatinLetter(ch) || ch == '.') {
-                start--;
-                continue;
-            }
-            break;
-        }
-
-        String token = text.substring(start + 1, dotIndex).toLowerCase(Locale.ROOT);
-        if (token.isEmpty()) {
-            return false;
-        }
-
-        return ABBREVIATIONS.contains(token) || ABBREVIATIONS.contains(token + ".");
-    }
-
     private static boolean isKoreanSentenceEnding(char ch) {
         return ch == '다' || ch == '요' || ch == '까' || ch == '죠' || ch == '음'
                 || ch == '임' || ch == '함' || ch == '네' || ch == '오' || ch == '쇼';
@@ -403,26 +304,13 @@ public final class EgovKoreanSentenceSupport {
         return ch == '"' || ch == '\'' || ch == '「' || ch == '『' || ch == '(' || ch == '[' || ch == '《';
     }
 
+    private static boolean continuesWithHangulOnSameLine(String text, int start) {
+        int index = skipHorizontalWhitespace(text, start);
+        return index < text.length() && isHangulSyllable(text.charAt(index));
+    }
+
     private static boolean isHangulSyllable(char ch) {
         return ch >= '가' && ch <= '힣';
-    }
-
-    private static boolean isLatinLetter(char ch) {
-        return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z');
-    }
-
-    private static boolean isFollowedByQuoteParticle(String text, int start) {
-        int index = start;
-        while (index < text.length() && isHorizontalWhitespace(text.charAt(index))) {
-            index++;
-        }
-
-        for (String particle : QUOTE_PARTICLES) {
-            if (startsWith(text, index, particle)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static int skipHorizontalWhitespace(String text, int start) {
@@ -437,17 +325,15 @@ public final class EgovKoreanSentenceSupport {
         return ch == ' ' || ch == '\t';
     }
 
-    private static boolean startsWith(String text, int start, String prefix) {
-        return start >= 0 && start + prefix.length() <= text.length()
-                && text.regionMatches(start, prefix, 0, prefix.length());
-    }
-
     private static char previousChar(String text, int index) {
         return index > 0 ? text.charAt(index - 1) : '\0';
     }
 
     private static char nextChar(String text, int index) {
         return index < text.length() ? text.charAt(index) : '\0';
+    }
+
+    private record CodeFence(char marker, int length) {
     }
 
     private record SentenceBoundary(boolean boundary, int endIndex) {
