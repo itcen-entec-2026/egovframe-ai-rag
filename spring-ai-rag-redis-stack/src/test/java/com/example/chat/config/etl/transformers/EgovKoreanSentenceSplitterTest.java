@@ -1,7 +1,9 @@
 package com.example.chat.config.etl.transformers;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -248,5 +250,22 @@ class EgovKoreanSentenceSplitterTest {
             }
         }
         return false;
+    }
+
+    @Test
+    @DisplayName("보충면 문자와 작은 청크 크기 조합에서도 유한 시간에 끝난다")
+    void terminatesForSupplementaryCharactersWithTinyChunkSize() {
+        String text = "\uD840\uDC0B\uD842\uDF9F".repeat(120);
+
+        for (int chunkSize : new int[] {1, 2, 3, 20}) {
+            assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
+                List<String> chunks = splitter(chunkSize).split(List.of(new Document(text))).stream()
+                        .map(Document::getText)
+                        .toList();
+                assertThat(chunks).isNotEmpty();
+                assertThat(chunks).hasSizeLessThanOrEqualTo(text.length());
+                assertThat(chunks).allSatisfy(chunk -> assertThat(text).contains(chunk));
+            });
+        }
     }
 }

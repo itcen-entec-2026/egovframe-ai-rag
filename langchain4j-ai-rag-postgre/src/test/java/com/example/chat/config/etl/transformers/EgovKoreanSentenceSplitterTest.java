@@ -6,9 +6,11 @@ import dev.langchain4j.data.segment.TextSegment;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
@@ -258,5 +260,31 @@ class EgovKoreanSentenceSplitterTest {
             }
         }
         return false;
+    }
+
+    @Test
+    @DisplayName("보충면 문자와 작은 청크 크기 조합에서도 유한 시간에 끝난다")
+    void terminatesForSupplementaryCharactersWithTinyChunkSize() {
+        String text = "\uD840\uDC0B".repeat(500);
+
+        for (int chunkSize : new int[] {1, 2, 3, 100}) {
+            int overlap = chunkSize / 2;
+            assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
+                List<TextSegment> segments = new EgovKoreanSentenceSplitter(chunkSize, overlap)
+                        .split(Document.from(text, new Metadata()));
+                assertThat(segments).isNotEmpty();
+                assertThat(segments).hasSizeLessThanOrEqualTo(text.length());
+                assertThat(segments).allSatisfy(segment -> assertThat(text).contains(segment.text()));
+            });
+        }
+    }
+
+    @Test
+    @DisplayName("오버랩이 청크 크기의 절반을 넘으면 생성 시점에 거부한다")
+    void rejectsOverlapLargerThanHalfChunkSize() {
+        assertThatThrownBy(() -> new EgovKoreanSentenceSplitter(100, 51))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new EgovKoreanSentenceSplitter(100, 90))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }

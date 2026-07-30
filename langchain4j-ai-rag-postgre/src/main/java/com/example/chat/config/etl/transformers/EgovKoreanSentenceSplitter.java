@@ -22,9 +22,10 @@ public class EgovKoreanSentenceSplitter implements DocumentSplitter {
         if (maxSegmentSizeInChars <= 0) {
             throw new IllegalArgumentException("maxSegmentSizeInChars must be greater than 0");
         }
-        if (maxOverlapSizeInChars < 0 || maxOverlapSizeInChars >= maxSegmentSizeInChars) {
+        if (maxOverlapSizeInChars < 0 || maxOverlapSizeInChars > maxSegmentSizeInChars / 2) {
+            // 오버랩이 절반을 넘으면 창이 조금씩만 나아가 청크 수가 문서 길이에 비례해 늘어난다.
             throw new IllegalArgumentException(
-                    "maxOverlapSizeInChars must be at least 0 and less than maxSegmentSizeInChars");
+                    "maxOverlapSizeInChars must be at least 0 and at most half of maxSegmentSizeInChars");
         }
         this.maxSegmentSizeInChars = maxSegmentSizeInChars;
         this.maxOverlapSizeInChars = maxOverlapSizeInChars;
@@ -123,6 +124,10 @@ public class EgovKoreanSentenceSplitter implements DocumentSplitter {
             }
 
             cut = alignToCodePointBoundary(text, cursor, cut);
+            if (cut <= cursor) {
+                // 보정으로 창이 비면 한 코드포인트만큼은 반드시 나아가 진행을 보장한다.
+                cut = nextCodePointIndex(text, cursor);
+            }
 
             String chunk = text.substring(cursor, cut).strip();
             if (!chunk.isEmpty()) {
@@ -136,8 +141,14 @@ public class EgovKoreanSentenceSplitter implements DocumentSplitter {
                     ? Math.max(cursor + 1, cut - maxOverlapSizeInChars)
                     : cut;
             // 오버랩 재개 위치도 코드포인트 경계에 맞춘다. 페어 중간에서 시작하면 짝 잃은 문자가 남는다.
-            cursor = alignToCodePointBoundary(text, cursor, next);
+            next = alignToCodePointBoundary(text, cursor, next);
+            // 보정이 커서를 되돌리면 진행이 멈추므로 최소 한 코드포인트는 나아간다.
+            cursor = Math.max(next, nextCodePointIndex(text, cursor));
         }
+    }
+
+    private static int nextCodePointIndex(String text, int index) {
+        return index + Character.charCount(text.codePointAt(index));
     }
 
     // 서로게이트 페어 중간에서 자르면 짝 잃은 문자가 남으므로 코드포인트 경계로 물러난다.

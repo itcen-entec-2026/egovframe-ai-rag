@@ -110,6 +110,10 @@ public class EgovKoreanSentenceSplitter extends TokenTextSplitter {
             }
 
             cut = alignToCodePointBoundary(text, cursor, cut);
+            if (cut <= cursor) {
+                // 토큰 한도에 맞는 창이 없거나 보정으로 창이 비면 한 코드포인트만큼 나아가 진행을 보장한다.
+                cut = nextCodePointIndex(text, cursor);
+            }
 
             addChunk(chunks, text.substring(cursor, cut).strip());
             if (chunks.size() >= maxNumChunks || cut >= span.end()) {
@@ -120,6 +124,10 @@ public class EgovKoreanSentenceSplitter extends TokenTextSplitter {
                 cursor++;
             }
         }
+    }
+
+    private static int nextCodePointIndex(String text, int index) {
+        return index + Character.charCount(text.codePointAt(index));
     }
 
     // 서로게이트 페어 중간에서 자르면 짝 잃은 문자가 남으므로 코드포인트 경계로 물러난다.
@@ -134,7 +142,7 @@ public class EgovKoreanSentenceSplitter extends TokenTextSplitter {
     private int longestCutWithinTokenLimit(String text, int start, int end) {
         int low = start + 1;
         int high = end;
-        int best = low;
+        int best = start;
         while (low <= high) {
             int mid = low + (high - low) / 2;
             // 토큰 계산기는 짝 잃은 서로게이트를 거부하므로 후보 위치를 먼저 코드포인트 경계로 맞춘다.
