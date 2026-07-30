@@ -8,7 +8,9 @@ import org.springframework.ai.model.transformer.SummaryMetadataEnricher;
 import org.springframework.ai.model.transformer.SummaryMetadataEnricher.SummaryType;
 import org.springframework.ai.model.transformer.KeywordMetadataEnricher;
 import org.springframework.ai.ollama.OllamaChatModel;
+import org.springframework.ai.transformer.splitter.TextSplitter;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -19,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 public class EgovEnhancedDocumentTransformer implements DocumentTransformer {
 
     private final OllamaChatModel ollamaChatModel;
+    private final ObjectProvider<EgovKoreanSentenceSplitter> koreanSentenceSplitterProvider;
     private final SummaryMetadataEnricher summaryEnricher;
     private KeywordMetadataEnricher keywordEnricher;
     
@@ -54,8 +57,10 @@ public class EgovEnhancedDocumentTransformer implements DocumentTransformer {
     @Value("${spring.ai.document.keyword-count}")
     private int keywordCount;
 
-    public EgovEnhancedDocumentTransformer(OllamaChatModel ollamaChatModel) {
+    public EgovEnhancedDocumentTransformer(OllamaChatModel ollamaChatModel,
+            ObjectProvider<EgovKoreanSentenceSplitter> koreanSentenceSplitterProvider) {
         this.ollamaChatModel = ollamaChatModel;
+        this.koreanSentenceSplitterProvider = koreanSentenceSplitterProvider;
         
         // 요약 생성기 초기화 (사용 여부는 설정에 따라 결정)
         this.summaryEnricher = new SummaryMetadataEnricher(
@@ -86,14 +91,21 @@ public class EgovEnhancedDocumentTransformer implements DocumentTransformer {
         log.info("TokenTextSplitter 설정 - chunkSize: {}, minChunkSizeChars: {}, minChunkLengthToEmbed: {}, maxNumChunks: {}", 
                 chunkSize, minChunkSizeChars, minChunkLengthToEmbed, maxNumChunks);
         
-        // 동적으로 TokenTextSplitter 생성
-        TokenTextSplitter textSplitter = new TokenTextSplitter(
-            chunkSize,           // chunkSize: 설정에서 가져온 청크 크기
-            minChunkSizeChars,   // minChunkSizeChars: 설정에서 가져온 최소 청크 크기
-            minChunkLengthToEmbed, // minChunkLengthToEmbed: 임베딩할 최소 청크 길이
-            maxNumChunks,        // maxNumChunks: 설정에서 가져온 최대 청크 수
-            true                 // keepSeparator: 구분자 유지 여부
-        );
+        TextSplitter textSplitter;
+        EgovKoreanSentenceSplitter koreanSentenceSplitter = koreanSentenceSplitterProvider.getIfAvailable();
+        if (koreanSentenceSplitter != null) {
+            textSplitter = koreanSentenceSplitter;
+            log.info("문서 분할기 선택 - {}", EgovKoreanSentenceSplitter.class.getSimpleName());
+        } else {
+            // 동적으로 TokenTextSplitter 생성
+            textSplitter = new TokenTextSplitter(
+                chunkSize,           // chunkSize: 설정에서 가져온 청크 크기
+                minChunkSizeChars,   // minChunkSizeChars: 설정에서 가져온 최소 청크 크기
+                minChunkLengthToEmbed, // minChunkLengthToEmbed: 임베딩할 최소 청크 길이
+                maxNumChunks,        // maxNumChunks: 설정에서 가져온 최대 청크 수
+                true                 // keepSeparator: 구분자 유지 여부
+            );
+        }
         
         List<Document> splitDocs = textSplitter.apply(documents);
         log.info("문서 분할 완료: {}개 청크 생성 (청크 크기: {} 토큰)", splitDocs.size(), chunkSize);
@@ -138,4 +150,4 @@ public class EgovEnhancedDocumentTransformer implements DocumentTransformer {
             return docsWithKeywords;
         }
     }
-} 
+}

@@ -62,6 +62,12 @@ spring:
       # 청크 크기 설정 (토큰 단위)
       chunk-size: 4000
 
+      # 한국어 문장경계 인지 청킹 설정
+      chunking:
+        korean-sentence:
+          # 활성화 여부. false(기본)이면 기존 TokenTextSplitter 방식만 사용 (기존 동작 유지)
+          enabled: false
+
       # 최소 청크 크기 (문자 단위)
       min-chunk-size-chars: 350
 
