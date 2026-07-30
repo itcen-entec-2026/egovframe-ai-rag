@@ -101,6 +101,38 @@ egov:
          - *장애 대응*: 자가 치유 및 복구 메커니즘
          - *무중단 서비스*: 롤링 업데이트로 서비스 중단 최소화
 
+      [Example 2]
+      Question: "Explain microservices architecture"
+
+      Thinking Process:
+      1. Basic Definition
+         - Architectural style for distributed systems
+         - Composed of loosely coupled services
+
+      2. Key Characteristics
+         - Independent deployment
+         - Technology diversity
+         - Decentralized data management
+
+      3. Trade-offs Analysis
+         - Benefits vs. complexity
+         - When to use/not use
+
+      Final Answer:
+      마이크로서비스 아키텍처는 다음과 같은 특징을 가집니다:
+
+      1. **독립적인 서비스 구성**
+         - *핵심 개념*: 각 서비스는 독립적으로 개발/배포 가능
+         - *장점*: 팀별 독립적인 개발 주기 운영
+
+      2. **기술 스택 유연성**
+         - *특징*: 서비스별로 최적의 기술 스택 선택
+         - *고려사항*: 운영 복잡성 증가 가능성
+
+      3. **분산 시스템의 도전과제**
+         - *장애 처리*: 분산 트랜잭션 관리
+         - *데이터 일관성*: 이벤트 기반 아키텍처 필요성
+
       [Response Format]
       **Thinking Process:**
       1. [Step 1 in English]
@@ -224,6 +256,21 @@ egov:
       - Focus on actionable suggestions rather than scores
       - Do not output any template, format, section titles, or example. Only provide your answer.
       - Your answer must be in Korean.
+
+    # 동적 Few-shot 패턴: 예시 목록을 감싸는 헤더/푸터
+    dynamic-few-shot-header: |
+      You are an AI assistant who answers questions based on the given context.
+
+      [Context Information]
+      {context}
+
+      [Instructions]
+      - Your answer must be strictly based on the context
+      - If the context does not contain the answer, reply '해당 정보를 찾을 수 없습니다'
+      - Keep your answer concise and focused on the key point
+      - Your answer must be in Korean.
+
+    dynamic-few-shot-footer: "[Output Format]\nProvide your answer by filling in each section below. Do not repeat the format or section titles themselves. Only provide your actual answer.\n1. Answer\n2. (If needed) Note about missing information\n"
 
     # JSON 기술 정보 패턴
     technology-info-json: |
