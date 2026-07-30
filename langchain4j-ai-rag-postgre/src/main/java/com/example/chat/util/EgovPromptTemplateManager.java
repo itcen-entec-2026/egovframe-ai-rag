@@ -18,7 +18,6 @@ import java.util.Map;
  * <p>
  * classpath:prompts/prompt-templates.yml 에서 프롬프트를 로드하며,
  * {@code {변수명}} 형식의 플레이스홀더 치환을 지원합니다.
- * 기존 {@link PromptEngineeringUtil}의 동작을 보존하면서 외부화를 제공합니다.
  * </p>
  */
 @Slf4j
