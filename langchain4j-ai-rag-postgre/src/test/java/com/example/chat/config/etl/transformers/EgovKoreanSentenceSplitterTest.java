@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * {@link EgovKoreanSentenceSplitter} 단위 테스트.
@@ -204,5 +205,58 @@ class EgovKoreanSentenceSplitterTest {
             assertThat(text).contains(segment.text());
             assertThat(segment.text().length()).isLessThanOrEqualTo(300);
         });
+    }
+
+    @Test
+    @DisplayName("오버랩이 청크 크기 이상이면 생성 시점에 거부한다")
+    void rejectsOverlapNotSmallerThanChunkSize() {
+        assertThatThrownBy(() -> new EgovKoreanSentenceSplitter(100, 100))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new EgovKoreanSentenceSplitter(100, 500))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new EgovKoreanSentenceSplitter(100, -1))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("공백 없는 긴 문서도 청크 수가 문서 길이에 비례해 늘지 않는다")
+    void doesNotExplodeChunkCountForTextWithoutWhitespace() {
+        String text = "가".repeat(1000);
+
+        List<TextSegment> segments = new EgovKoreanSentenceSplitter(100, 30)
+                .split(Document.from(text, new Metadata()));
+
+        assertThat(segments).hasSizeLessThanOrEqualTo(20);
+        assertThat(segments).allSatisfy(segment -> assertThat(text).contains(segment.text()));
+    }
+
+    @Test
+    @DisplayName("보충면 문자를 코드포인트 경계에서 잘라 짝 잃은 문자를 남기지 않는다")
+    void doesNotSplitSurrogatePairs() {
+        String text = "\uD840\uDC0B\uD842\uDF9F".repeat(120);
+
+        List<TextSegment> segments = new EgovKoreanSentenceSplitter(99, 9)
+                .split(Document.from(text, new Metadata()));
+
+        assertThat(segments).isNotEmpty();
+        assertThat(segments).allSatisfy(segment -> {
+            assertThat(text).contains(segment.text());
+            assertThat(hasUnpairedSurrogate(segment.text())).isFalse();
+        });
+    }
+
+    private static boolean hasUnpairedSurrogate(String text) {
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            if (Character.isHighSurrogate(ch)) {
+                if (i + 1 >= text.length() || !Character.isLowSurrogate(text.charAt(i + 1))) {
+                    return true;
+                }
+                i++;
+            } else if (Character.isLowSurrogate(ch)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

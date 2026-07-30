@@ -216,4 +216,37 @@ class EgovKoreanSentenceSplitterTest {
             assertThat(countTokens(chunk)).isLessThanOrEqualTo(chunkSize);
         });
     }
+
+    @Test
+    @DisplayName("보충면 문자를 코드포인트 경계에서 잘라 짝 잃은 문자를 남기지 않는다")
+    void doesNotSplitSurrogatePairs() {
+        String text = "\uD840\uDC0B\uD842\uDF9F".repeat(120);
+        int chunkSize = 40;
+
+        List<String> chunks = splitter(chunkSize).split(List.of(new Document(text))).stream()
+                .map(Document::getText)
+                .toList();
+
+        assertThat(chunks).isNotEmpty();
+        assertThat(chunks).allSatisfy(chunk -> {
+            assertThat(text).contains(chunk);
+            assertThat(hasUnpairedSurrogate(chunk)).isFalse();
+            assertThat(countTokens(chunk)).isLessThanOrEqualTo(chunkSize);
+        });
+    }
+
+    private static boolean hasUnpairedSurrogate(String text) {
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            if (Character.isHighSurrogate(ch)) {
+                if (i + 1 >= text.length() || !Character.isLowSurrogate(text.charAt(i + 1))) {
+                    return true;
+                }
+                i++;
+            } else if (Character.isLowSurrogate(ch)) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

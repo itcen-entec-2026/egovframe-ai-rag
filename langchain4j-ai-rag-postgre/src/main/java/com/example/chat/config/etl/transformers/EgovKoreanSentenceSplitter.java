@@ -22,6 +22,10 @@ public class EgovKoreanSentenceSplitter implements DocumentSplitter {
         if (maxSegmentSizeInChars <= 0) {
             throw new IllegalArgumentException("maxSegmentSizeInChars must be greater than 0");
         }
+        if (maxOverlapSizeInChars < 0 || maxOverlapSizeInChars >= maxSegmentSizeInChars) {
+            throw new IllegalArgumentException(
+                    "maxOverlapSizeInChars must be at least 0 and less than maxSegmentSizeInChars");
+        }
         this.maxSegmentSizeInChars = maxSegmentSizeInChars;
         this.maxOverlapSizeInChars = maxOverlapSizeInChars;
     }
@@ -118,6 +122,8 @@ public class EgovKoreanSentenceSplitter implements DocumentSplitter {
                 }
             }
 
+            cut = alignToCodePointBoundary(text, cursor, cut);
+
             String chunk = text.substring(cursor, cut).strip();
             if (!chunk.isEmpty()) {
                 segmentTexts.add(chunk);
@@ -126,10 +132,21 @@ public class EgovKoreanSentenceSplitter implements DocumentSplitter {
             if (cut >= span.end()) {
                 return;
             }
-            cursor = maxOverlapSizeInChars > 0
+            int next = maxOverlapSizeInChars > 0
                     ? Math.max(cursor + 1, cut - maxOverlapSizeInChars)
                     : cut;
+            // 오버랩 재개 위치도 코드포인트 경계에 맞춘다. 페어 중간에서 시작하면 짝 잃은 문자가 남는다.
+            cursor = alignToCodePointBoundary(text, cursor, next);
         }
+    }
+
+    // 서로게이트 페어 중간에서 자르면 짝 잃은 문자가 남으므로 코드포인트 경계로 물러난다.
+    private static int alignToCodePointBoundary(String text, int start, int cut) {
+        if (cut > start && cut < text.length() && Character.isLowSurrogate(text.charAt(cut))
+                && Character.isHighSurrogate(text.charAt(cut - 1))) {
+            return cut - 1;
+        }
+        return cut;
     }
 
     private boolean canAppend(List<SentenceSpan> spans, int startIndex, int nextIndex) {
