@@ -5,7 +5,6 @@ import com.example.chat.util.EgovKoreanSentenceSupport.SentenceSpan;
 import dev.langchain4j.data.document.Document;
 import dev.langchain4j.data.document.DocumentSplitter;
 import dev.langchain4j.data.document.Metadata;
-import dev.langchain4j.data.document.splitter.DocumentSplitters;
 import dev.langchain4j.data.segment.TextSegment;
 
 import java.util.ArrayList;
@@ -18,7 +17,6 @@ public class EgovKoreanSentenceSplitter implements DocumentSplitter {
 
     private final int maxSegmentSizeInChars;
     private final int maxOverlapSizeInChars;
-    private final DocumentSplitter fallbackSplitter;
 
     public EgovKoreanSentenceSplitter(int maxSegmentSizeInChars, int maxOverlapSizeInChars) {
         if (maxSegmentSizeInChars <= 0) {
@@ -26,7 +24,6 @@ public class EgovKoreanSentenceSplitter implements DocumentSplitter {
         }
         this.maxSegmentSizeInChars = maxSegmentSizeInChars;
         this.maxOverlapSizeInChars = maxOverlapSizeInChars;
-        this.fallbackSplitter = DocumentSplitters.recursive(maxSegmentSizeInChars, maxOverlapSizeInChars);
     }
 
     @Override
@@ -54,12 +51,7 @@ public class EgovKoreanSentenceSplitter implements DocumentSplitter {
                     bufferEnd = -1;
                 }
 
-                Document fallbackDocument = Document.from(
-                        text.substring(span.start(), span.end()), document.metadata().copy());
-                List<TextSegment> fallbackSegments = fallbackSplitter.split(fallbackDocument);
-                for (TextSegment fallbackSegment : fallbackSegments) {
-                    segmentTexts.add(fallbackSegment.text());
-                }
+                addOversizedSpanChunks(segmentTexts, text, span);
                 lastSegmentStart = -1;
                 lastSegmentEnd = -1;
                 continue;
@@ -107,6 +99,37 @@ public class EgovKoreanSentenceSplitter implements DocumentSplitter {
             segments.add(TextSegment.from(segmentTexts.get(i), metadata));
         }
         return List.copyOf(segments);
+    }
+
+    // 한 문장이 청크 한도를 넘으면 원문 offset 창으로 잘라 나눈다. 가능하면 공백 위치로 물러나 자르고,
+    // 공백이 없으면 한도에서 끊는다. 어느 경우에도 청크는 원문 부분문자열로 남는다.
+    private void addOversizedSpanChunks(List<String> segmentTexts, String text, SentenceSpan span) {
+        int cursor = span.start();
+        while (cursor < span.end()) {
+            int limit = Math.min(cursor + maxSegmentSizeInChars, span.end());
+            int cut = limit;
+            if (limit < span.end()) {
+                int candidate = limit;
+                while (candidate > cursor && !Character.isWhitespace(text.charAt(candidate))) {
+                    candidate--;
+                }
+                if (candidate > cursor) {
+                    cut = candidate;
+                }
+            }
+
+            String chunk = text.substring(cursor, cut).strip();
+            if (!chunk.isEmpty()) {
+                segmentTexts.add(chunk);
+            }
+
+            if (cut >= span.end()) {
+                return;
+            }
+            cursor = maxOverlapSizeInChars > 0
+                    ? Math.max(cursor + 1, cut - maxOverlapSizeInChars)
+                    : cut;
+        }
     }
 
     private boolean canAppend(List<SentenceSpan> spans, int startIndex, int nextIndex) {

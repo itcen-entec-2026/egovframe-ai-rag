@@ -17,8 +17,8 @@ import org.springframework.ai.transformer.splitter.TokenTextSplitter;
  * <p>{@link EgovKoreanSentenceSupport} 로 문장 경계를 먼저 나눈 뒤, Spring AI
  * {@link TokenTextSplitter} 와 동일한 CL100K_BASE 토크나이저로 청크 크기를 판정한다.
  * 청크는 원문 부분문자열이며 개행·표 구조가 보존된다.
- * 단일 문장이 청크 한도를 넘으면 {@code super.splitText(...)} 로 기존 분할기 동작에
- * 위임하여 모델 입력 한도를 보장한다. 기존 {@link TokenTextSplitter} 와의 정합을 위해
+ * 단일 문장이 청크 한도를 넘으면 원문 offset 창으로 잘라 나눠 모델 입력 한도를 지키면서도
+ * 청크가 원문 부분문자열로 남게 한다. 기존 {@link TokenTextSplitter} 와의 정합을 위해
  * 오버랩은 두지 않는다.</p>
  */
 public class EgovKoreanSentenceSplitter extends TokenTextSplitter {
@@ -60,7 +60,7 @@ public class EgovKoreanSentenceSplitter extends TokenTextSplitter {
                 if (chunks.size() >= maxNumChunks) {
                     break;
                 }
-                addFallbackChunks(chunks, sentence);
+                addOversizedSpanChunks(chunks, text, span);
                 if (chunks.size() >= maxNumChunks) {
                     break;
                 }
@@ -93,13 +93,47 @@ public class EgovKoreanSentenceSplitter extends TokenTextSplitter {
         return List.copyOf(chunks);
     }
 
-    private void addFallbackChunks(List<String> chunks, String sentence) {
-        for (String fallbackChunk : super.splitText(sentence)) {
-            addChunk(chunks, fallbackChunk);
-            if (chunks.size() >= maxNumChunks) {
+    // 한 문장이 토큰 한도를 넘으면 원문 offset 창으로 잘라 나눈다. 토큰 한도에 맞는 가장 긴 창을
+    // 이진 탐색으로 찾고 가능하면 공백 위치로 물러나 자른다. 어느 경우에도 청크는 원문 부분문자열로 남는다.
+    private void addOversizedSpanChunks(List<String> chunks, String text, SentenceSpan span) {
+        int cursor = span.start();
+        while (cursor < span.end()) {
+            int cut = longestCutWithinTokenLimit(text, cursor, span.end());
+            if (cut < span.end()) {
+                int candidate = cut;
+                while (candidate > cursor && !Character.isWhitespace(text.charAt(candidate))) {
+                    candidate--;
+                }
+                if (candidate > cursor) {
+                    cut = candidate;
+                }
+            }
+
+            addChunk(chunks, text.substring(cursor, cut).strip());
+            if (chunks.size() >= maxNumChunks || cut >= span.end()) {
                 return;
             }
+            cursor = cut;
+            while (cursor < span.end() && Character.isWhitespace(text.charAt(cursor))) {
+                cursor++;
+            }
         }
+    }
+
+    private int longestCutWithinTokenLimit(String text, int start, int end) {
+        int low = start + 1;
+        int high = end;
+        int best = low;
+        while (low <= high) {
+            int mid = low + (high - low) / 2;
+            if (countTokens(text.substring(start, mid)) <= chunkSize) {
+                best = mid;
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }
+        }
+        return best;
     }
 
     private void addSpanChunk(List<String> chunks, String text, List<SentenceSpan> spans,

@@ -184,4 +184,25 @@ class EgovKoreanSentenceSplitterTest {
                 날짜는 2026. 7. 30. 기준입니다. 담당자는 A. B. 홍길동입니다. 마지막 문장입니다.
                 추가 설명은 표와 코드펜스 뒤에서도 원문 순서를 유지하는지 확인한다. 또 다른 문장은 작은 chunkSize 에서 다음 청크로 이동한다.""";
     }
+
+    @Test
+    @DisplayName("청크 한도를 넘는 구간도 원문 부분문자열로 잘라 나눈다")
+    void keepsOriginalSubstringForOversizedSpan() {
+        StringBuilder code = new StringBuilder("```java\n");
+        for (int i = 0; i < 60; i++) {
+            code.append("    public void method").append(i).append("() {\n")
+                    .append("        int value = ").append(i).append("; // 주석\n    }\n");
+        }
+        code.append("```\n");
+        String text = code.toString();
+
+        List<TextSegment> segments = new EgovKoreanSentenceSplitter(300, 50)
+                .split(Document.from(text, new Metadata()));
+
+        assertThat(segments).isNotEmpty();
+        assertThat(segments).allSatisfy(segment -> {
+            assertThat(text).contains(segment.text());
+            assertThat(segment.text().length()).isLessThanOrEqualTo(300);
+        });
+    }
 }

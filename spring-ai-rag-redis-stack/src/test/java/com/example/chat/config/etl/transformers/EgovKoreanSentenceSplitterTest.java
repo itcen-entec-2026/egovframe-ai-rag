@@ -193,4 +193,27 @@ class EgovKoreanSentenceSplitterTest {
                 날짜는 2026. 7. 30. 기준입니다. 담당자는 A. B. 홍길동입니다.
                 수치는 3.14이고 No. 1 양식을 따른다. 마지막 문장입니다.""";
     }
+
+    @Test
+    @DisplayName("토큰 한도를 넘는 구간도 원문 부분문자열로 잘라 나눈다")
+    void keepsOriginalSubstringForOversizedSpan() {
+        StringBuilder code = new StringBuilder("```java\n");
+        for (int i = 0; i < 60; i++) {
+            code.append("    public void method").append(i).append("() {\n")
+                    .append("        int value = ").append(i).append("; // 주석\n    }\n");
+        }
+        code.append("```\n");
+        String text = code.toString();
+        int chunkSize = 60;
+
+        List<String> chunks = splitter(chunkSize).split(List.of(new Document(text))).stream()
+                .map(Document::getText)
+                .toList();
+
+        assertThat(chunks).isNotEmpty();
+        assertThat(chunks).allSatisfy(chunk -> {
+            assertThat(text).contains(chunk);
+            assertThat(countTokens(chunk)).isLessThanOrEqualTo(chunkSize);
+        });
+    }
 }

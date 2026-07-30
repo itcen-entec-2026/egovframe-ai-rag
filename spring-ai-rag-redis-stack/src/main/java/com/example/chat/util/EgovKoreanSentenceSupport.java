@@ -131,7 +131,8 @@ public final class EgovKoreanSentenceSupport {
             boundary = isKoreanSentenceEnding(previous) && followedByBreak;
         } else {
             // 물음표·느낌표는 다른 표기로 쓰이지 않아 뒤에 공백·개행·문서 끝이 오면 경계로 본다.
-            boundary = followedByBreak;
+            // 다만 같은 줄에서 아직 닫히지 않은 마크다운 링크·이미지 안이면 토큰 중간이므로 제외한다.
+            boundary = followedByBreak && !isInsideUnclosedInlineMarkup(text, terminatorStart);
         }
 
         // 인용문을 닫은 뒤 같은 줄에 한국어가 이어지면 인용을 받는 문장 성분(라고 말했다)이므로 자르지 않는다.
@@ -146,6 +147,32 @@ public final class EgovKoreanSentenceSupport {
         }
 
         return new SentenceBoundary(boundary, boundaryEnd);
+    }
+
+    // 닫는 펜스에는 정보문자열이 올 수 없다(CommonMark). 마커 뒤에 수평공백만 있는 줄만 닫는 펜스로 본다.
+    private static boolean isBlankAfterFenceMarker(String text, int lineStart, CodeFence fence) {
+        int index = skipHorizontalWhitespace(text, lineStart) + fence.length();
+        index = skipHorizontalWhitespace(text, index);
+        return index >= text.length() || isLineBreak(text.charAt(index));
+    }
+
+    // 같은 줄 앞쪽에 닫히지 않은 [ 또는 ( 가 있으면 마크다운 링크·이미지 표기 안이다.
+    private static boolean isInsideUnclosedInlineMarkup(String text, int index) {
+        int bracket = 0;
+        int paren = 0;
+        for (int i = lineStart(text, index); i < index; i++) {
+            char ch = text.charAt(i);
+            if (ch == '[') {
+                bracket++;
+            } else if (ch == ']' && bracket > 0) {
+                bracket--;
+            } else if (ch == '(') {
+                paren++;
+            } else if (ch == ')' && paren > 0) {
+                paren--;
+            }
+        }
+        return bracket > 0 || paren > 0;
     }
 
     private static void addSentenceSpan(List<SentenceSpan> spans, String text, int start, int end) {
@@ -248,7 +275,8 @@ public final class EgovKoreanSentenceSupport {
         while (search < text.length()) {
             CodeFence closing = codeFenceAt(text, search);
             // 닫는 펜스는 여는 펜스와 같은 문자이고 길이가 같거나 길어야 한다(네 겹 백틱 블록의 조기 종료 방지).
-            if (closing != null && closing.marker() == opening.marker() && closing.length() >= opening.length()) {
+            if (closing != null && closing.marker() == opening.marker() && closing.length() >= opening.length()
+                    && isBlankAfterFenceMarker(text, search, closing)) {
                 // 닫는 펜스 줄 끝까지만 포함하고 뒤 개행은 문장 사이 공백으로 남긴다.
                 return lineEnd(text, search);
             }
