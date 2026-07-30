@@ -81,6 +81,14 @@ document:
   # 청크 크기 설정 (토큰 단위)
   chunk-size: 4000
 
+  # 한국어 문장경계 인지 청킹 설정
+  chunking:
+    korean-sentence:
+      # 활성화 여부. false(기본)이면 기존 DocumentSplitters.recursive 방식만 사용 (기존 동작 유지)
+      enabled: false
+      # 문장 단위 오버랩 최대 문자 수. 미설정 시 chunk-size 의 10%(최소 50)
+      # overlap-size-chars: 400
+
   # 최소 청크 크기 (문자 단위)
   min-chunk-size-chars: 350
 
