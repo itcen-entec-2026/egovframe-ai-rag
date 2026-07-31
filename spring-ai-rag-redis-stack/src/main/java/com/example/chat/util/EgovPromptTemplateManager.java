@@ -5,16 +5,15 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.PropertySource;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 /**
  * classpath 기반 프롬프트 템플릿 매니저
  *
  * <p>{@code prompts/prompt-templates.yml}의 {@code egov.prompt-templates} 하위 항목을
- * {@link ConfigurationProperties}로 바인딩하고, {@code {변수명}} 형식의 플레이스홀더를
- * 치환하여 최종 프롬프트를 반환합니다.
+ * {@link PromptTemplateProperties}가 바인딩한 맵을 주입받아, {@code {변수명}} 형식의
+ * 플레이스홀더를 치환하여 최종 프롬프트를 반환합니다.
  *
  * <p>사용 예:
  * <pre>{@code
@@ -26,15 +25,13 @@ import org.springframework.stereotype.Component;
  * }</pre>
  */
 @Component
-@ConfigurationProperties(prefix = "egov.prompt-templates")
-@PropertySource(value = "classpath:prompts/prompt-templates.yml", factory = YamlPropertySourceFactory.class)
 public class EgovPromptTemplateManager {
 
     /** egov.prompt-templates 아래 바인딩된 키-값 맵 */
-    private Map<String, String> templates = Collections.emptyMap();
+    private final Map<String, String> templates;
 
-    public void setTemplates(Map<String, String> templates) {
-        this.templates = templates == null ? Collections.emptyMap() : new LinkedHashMap<>(templates);
+    public EgovPromptTemplateManager(@Qualifier("promptTemplates") Map<String, String> promptTemplates) {
+        this.templates = promptTemplates == null ? Collections.emptyMap() : new LinkedHashMap<>(promptTemplates);
     }
 
     /**
