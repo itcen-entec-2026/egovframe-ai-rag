@@ -187,6 +187,27 @@ class EgovKoreanSentenceSupportTest {
     }
 
     @Test
+    @DisplayName("영어 문장 끝 마침표는 경계로 보지 않아 뒤따르는 한국어 문장과 한 구간으로 남는다")
+    void keepEnglishSentenceWithFollowingKoreanSentence() {
+        String text = "Spring Boot provides auto-configuration. 이를 통해 개발자는 설정을 최소화할 수 있습니다.";
+
+        assertThat(EgovKoreanSentenceSupport.splitSentences(text)).containsExactly(text);
+        assertThat(EgovKoreanSentenceSupport.splitSentences("Spring Boot provides auto-configuration. It reduces boilerplate."))
+                .containsExactly("Spring Boot provides auto-configuration. It reduces boilerplate.");
+    }
+
+    @Test
+    @DisplayName("영어 문장이 섞여도 빈 줄 문단 경계는 그대로 적용한다")
+    void splitEnglishMixedTextAtBlankLineBoundary() {
+        String text = "Spring Boot provides auto-configuration.\n\n이를 통해 개발자는 설정을 최소화할 수 있습니다.";
+
+        assertThat(EgovKoreanSentenceSupport.splitSentences(text)).containsExactly(
+                "Spring Boot provides auto-configuration.",
+                "이를 통해 개발자는 설정을 최소화할 수 있습니다."
+        );
+    }
+
+    @Test
     @DisplayName("null 또는 공백 입력은 빈 목록을 반환한다")
     void returnEmptyListForBlankInput() {
         assertThat(EgovKoreanSentenceSupport.splitSentences(null)).isEmpty();
@@ -207,7 +228,8 @@ class EgovKoreanSentenceSupportTest {
                 "첫 줄입니다\n이어지는 줄입니다.\n\n새 문단입니다.",
                 "# 제목\n본문입니다.",
                 "담당자는 \"즉시 조치한다.\"라고 말했다.",
-                "앞 문장입니다.\n```java\n// 주석. 끝\nint value = 1;\n```\n뒤 문장입니다."
+                "앞 문장입니다.\n```java\n// 주석. 끝\nint value = 1;\n```\n뒤 문장입니다.",
+                "Spring Boot provides auto-configuration. 이를 통해 개발자는 설정을 최소화할 수 있습니다."
         );
 
         for (String text : cases) {

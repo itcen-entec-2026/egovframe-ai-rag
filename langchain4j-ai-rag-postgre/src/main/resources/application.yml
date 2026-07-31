@@ -85,6 +85,7 @@ document:
   chunking:
     korean-sentence:
       # 활성화 여부. false(기본)이면 기존 DocumentSplitters.recursive 방식만 사용 (기존 동작 유지)
+      # 한국어가 위주인 문서에서 효과적이며, 영어 비중이 높은 문서에는 적합하지 않을 수 있음
       enabled: false
       # 문장 단위 오버랩 최대 문자 수. 미설정 시 chunk-size 의 10%(최소 50)
       # overlap-size-chars: 400

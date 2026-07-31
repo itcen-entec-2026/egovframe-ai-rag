@@ -14,6 +14,10 @@ import java.util.List;
  * <p>경계를 놓치면 두 문장이 한 구간으로 남을 뿐이고, 청크는 원문 offset을 그대로 잘라내므로
  * 내용이 훼손되지 않는다. 반대로 경계를 잘못 만들면 문장이 중간에서 끊어지므로, 확신이 없는
  * 마침표는 자르지 않는다. LLM·외부 사전 없이 결정론적으로 동작한다.</p>
+ *
+ * <p>마침표 경계 판정은 한국어 종결어미 뒤에서만 동작하므로 영어 문장 끝 마침표는 경계로 보지 않는다.
+ * 영어 문장과 뒤따르는 한국어 문장은 한 구간으로 남고, 영어 비중이 높은 문서는 구간이 길어질 수 있다.
+ * 이는 약어·소수점 오분리를 피하기 위한 의도된 제약이며, 이런 문서에는 기존 splitter가 더 적합하다.</p>
  */
 public final class EgovKoreanSentenceSupport {
 
@@ -318,7 +322,7 @@ public final class EgovKoreanSentenceSupport {
 
     private static boolean isKoreanSentenceEnding(char ch) {
         return ch == '다' || ch == '요' || ch == '까' || ch == '죠' || ch == '음'
-                || ch == '임' || ch == '함' || ch == '네' || ch == '오' || ch == '쇼';
+                || ch == '임' || ch == '함' || ch == '네' || ch == '오';
     }
 
     private static boolean isSafeNoSpaceNext(char ch) {

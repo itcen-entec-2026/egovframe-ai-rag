@@ -139,7 +139,7 @@ class EgovKoreanSentenceSplitterTest {
 
         char last = text.charAt(text.length() - 1);
         return last == '다' || last == '요' || last == '까' || last == '죠' || last == '음'
-                || last == '임' || last == '함' || last == '네' || last == '오' || last == '쇼';
+                || last == '임' || last == '함' || last == '네' || last == '오';
     }
 
     private Document documentWithText(String text) {
