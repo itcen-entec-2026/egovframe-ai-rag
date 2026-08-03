@@ -213,6 +213,19 @@ public class EgovDocumentServiceImpl extends EgovAbstractServiceImpl implements 
             result.putIfAbsent("files", Collections.emptyList());
             return result;
         }
+        // 저장 경로 미설정을 저장 시작 전에 전체 파일에 대해 검증한다. (2단계 검증의 1단계)
+        // 혼합 확장자 배치에서 일부 파일만 디스크에 저장된 채 전체 응답만 실패로 나가는 것을 막는다.
+        for (MultipartFile file : files) {
+            String precheckExtension = extractExtension(
+                    Paths.get(file.getOriginalFilename()).getFileName().toString());
+            if (resolveUploadBaseDir(targetPathPatternOf(precheckExtension)) == null) {
+                result.put("success", false);
+                result.put("message", precheckExtension + " 파일을 저장할 문서 경로가 설정되지 않았습니다. ("
+                        + uploadPathPropertyOf(precheckExtension) + " 설정 필요)");
+                result.putIfAbsent("files", Collections.emptyList());
+                return result;
+            }
+        }
         for (MultipartFile file : files) {
             String filename = Paths.get(file.getOriginalFilename()).getFileName().toString();
             String extension = extractExtension(filename);
