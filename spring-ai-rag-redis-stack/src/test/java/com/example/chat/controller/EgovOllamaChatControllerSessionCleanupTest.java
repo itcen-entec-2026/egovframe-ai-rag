@@ -3,6 +3,7 @@ package com.example.chat.controller;
 import com.example.chat.context.SessionContext;
 import com.example.chat.service.EgovChatSessionService;
 import com.example.chat.service.EgovSessionAwareChatService;
+import com.example.chat.util.EgovPromptTemplateManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,8 +36,9 @@ class EgovOllamaChatControllerSessionCleanupTest {
     private final OllamaChatModel chatModel = mock(OllamaChatModel.class);
     private final EgovSessionAwareChatService chatService = mock(EgovSessionAwareChatService.class);
     private final EgovChatSessionService sessionService = mock(EgovChatSessionService.class);
+    private final EgovPromptTemplateManager promptTemplateManager = mock(EgovPromptTemplateManager.class);
     private final EgovOllamaChatController controller =
-            new EgovOllamaChatController(chatModel, chatService, sessionService);
+            new EgovOllamaChatController(chatModel, chatService, sessionService, promptTemplateManager);
 
     @AfterEach
     void tearDown() {
