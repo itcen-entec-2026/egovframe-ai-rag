@@ -12,6 +12,8 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 
+import static dev.langchain4j.store.embedding.filter.MetadataFilterBuilder.metadataKey;
+
 /**
  * 벡터 저장소 Writer
  * 문서를 임베딩하여 PGVector에 저장
@@ -20,6 +22,8 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 public class EgovVectorStoreWriter {
+
+    private static final int DELETE_BATCH_SIZE = 200;
 
     private final EmbeddingStore<TextSegment> embeddingStore;
     private final EmbeddingModel embeddingModel;
@@ -43,18 +47,32 @@ public class EgovVectorStoreWriter {
         }
 
         try {
-            // 문서를 TextSegment로 변환하고 임베딩 생성
+            // 문서를 TextSegment로 변환하고 배치 임베딩 생성
             List<TextSegment> segments = new ArrayList<>();
-            List<Embedding> embeddings = new ArrayList<>();
 
             for (Document doc : documents) {
-                // TextSegment 생성 (메타데이터 포함)
-                TextSegment segment = TextSegment.from(doc.text(), doc.metadata());
-                segments.add(segment);
+                segments.add(TextSegment.from(doc.text(), doc.metadata()));
+            }
 
-                // 임베딩 생성
-                Embedding embedding = embeddingModel.embed(doc.text()).content();
-                embeddings.add(embedding);
+            List<Embedding> embeddings = embeddingModel.embedAll(segments).content();
+
+            // 같은 문서 id의 기존 벡터를 먼저 삭제하여 재색인 시 stale 청크 누적을 방지
+            List<String> documentIds = segments.stream()
+                    .map(segment -> segment.metadata().getString("id"))
+                    .filter(id -> id != null && !id.isBlank())
+                    .distinct()
+                    .toList();
+
+            if (documentIds.isEmpty()) {
+                log.warn("삭제 대상 문서 id가 없어 기존 벡터 삭제를 건너뜁니다. 저장은 계속 진행합니다.");
+            } else {
+                log.info("기존 벡터 삭제 시작: 대상 문서 id {}건, 입력 문서 {}개", documentIds.size(), documents.size());
+                for (int from = 0; from < documentIds.size(); from += DELETE_BATCH_SIZE) {
+                    int to = Math.min(from + DELETE_BATCH_SIZE, documentIds.size());
+                    List<String> idBatch = documentIds.subList(from, to);
+                    embeddingStore.removeAll(metadataKey("id").isIn(idBatch));
+                }
+                log.info("기존 벡터 삭제 완료: 대상 문서 id {}건, 입력 문서 {}개", documentIds.size(), documents.size());
             }
 
             // 벡터 저장소에 저장
