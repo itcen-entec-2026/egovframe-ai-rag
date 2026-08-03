@@ -2,9 +2,13 @@ package com.example.chat.service.impl;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.nio.file.Path;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -145,5 +149,29 @@ class EgovDocumentServiceImplUploadValidationTest {
         assertThat(EgovDocumentServiceImpl.resolveUploadBaseDir("classpath:docs/**/*.md")).isNull();
         assertThat(EgovDocumentServiceImpl.resolveUploadBaseDir(null)).isNull();
         assertThat(EgovDocumentServiceImpl.resolveUploadBaseDir("  ")).isNull();
+    }
+
+    @TempDir
+    Path tempDir;
+
+    @Test
+    @DisplayName("혼합 배치에서 일부 확장자의 문서 경로가 미설정이면 어떤 파일도 저장하지 않고 실패한다")
+    void mixedBatchWithUnconfiguredPathSavesNothing() {
+        // .md 경로만 설정하고 .hwp 경로는 미설정으로 둔다.
+        ReflectionTestUtils.setField(service, "documentPath", "file:" + tempDir.toString().replace('\\', '/') + "/**/*.md");
+
+        MultipartFile[] files = {
+                md("a.md", 10),
+                md("b.md", 10),
+                new MockMultipartFile("files", "c.hwp", "application/octet-stream", new byte[10])
+        };
+
+        Map<String, Object> result = service.uploadDocumentFiles(files);
+
+        assertThat(result.get("success")).isEqualTo(false);
+        assertThat((String) result.get("message")).contains("document.hwp-path");
+        // 핵심: 실패 응답이면 앞선 .md 파일들도 디스크에 저장돼 있지 않아야 한다.
+        File[] saved = tempDir.toFile().listFiles();
+        assertThat(saved == null ? 0 : saved.length).isZero();
     }
 }
