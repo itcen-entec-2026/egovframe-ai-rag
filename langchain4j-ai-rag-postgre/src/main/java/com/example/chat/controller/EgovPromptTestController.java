@@ -1,12 +1,11 @@
 package com.example.chat.controller;
 
-import com.example.chat.util.PromptEngineeringUtil;
+import com.example.chat.util.EgovPromptTemplateManager;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.ollama.OllamaChatModel;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,27 +23,26 @@ import java.util.stream.Collectors;
 @RequestMapping("/ai/prompt")
 public class EgovPromptTestController {
 
-    @Value("${langchain4j.ollama.base-url}")
-    private String ollamaBaseUrl;
+    private final EgovPromptTemplateManager promptTemplateManager;
+    private final OllamaChatModel chatModel;
 
-    @Value("${langchain4j.ollama.chat-model.model-name}")
-    private String defaultModelName;
-
-    @Value("${langchain4j.ollama.chat-model.temperature}")
-    private Double defaultTemperature;
+    public EgovPromptTestController(EgovPromptTemplateManager promptTemplateManager, OllamaChatModel chatModel) {
+        this.promptTemplateManager = promptTemplateManager;
+        this.chatModel = chatModel;
+    }
 
     /**
      * Zero-shot 패턴 테스트
+     * 프롬프트는 classpath:prompts/prompt-templates.yml 의 prompts.zero-shot 에서 로드됩니다.
      */
     @GetMapping(value = "/zero-shot", produces = MediaType.TEXT_PLAIN_VALUE)
     public String testZeroShot(
             @RequestParam(value = "query", defaultValue = "Spring Boot의 주요 특징을 설명해주세요") String query) {
         log.info("Zero-shot 패턴 테스트 - 쿼리: {}", query);
 
-        String systemPrompt = PromptEngineeringUtil.createZeroShotPrompt();
+        String systemPrompt = promptTemplateManager.get("zero-shot");
         String fullPrompt = systemPrompt + "\n\nQuestion: " + query;
 
-        OllamaChatModel chatModel = createChatModel();
         String response = generateResponse(chatModel, fullPrompt);
 
         log.info("Zero-shot 응답 생성 완료");
@@ -53,6 +51,7 @@ public class EgovPromptTestController {
 
     /**
      * 컨텍스트 기반 답변 패턴 테스트
+     * 프롬프트는 classpath:prompts/prompt-templates.yml 의 prompts.context-based 에서 로드됩니다.
      */
     @PostMapping(value = "/context-based", produces = MediaType.TEXT_PLAIN_VALUE)
     public String testContextBased(
@@ -64,10 +63,9 @@ public class EgovPromptTestController {
             context = "Spring Boot는 스프링 기반 애플리케이션을 쉽게 만들 수 있도록 도와주는 프레임워크입니다. 자동 구성(Auto-configuration) 기능을 통해 개발자가 직접 설정하지 않아도 대부분의 설정이 자동으로 이루어집니다.";
         }
 
-        String systemPrompt = PromptEngineeringUtil.createContextBasedPrompt(context);
+        String systemPrompt = promptTemplateManager.render("context-based", Map.of("context", context));
         String fullPrompt = systemPrompt + "\n\nQuestion: " + query;
 
-        OllamaChatModel chatModel = createChatModel();
         String response = generateResponse(chatModel, fullPrompt);
 
         log.info("컨텍스트 기반 응답 생성 완료");
@@ -87,10 +85,9 @@ public class EgovPromptTestController {
             context = "LangChain4j는 Java 애플리케이션에서 LLM을 쉽게 사용할 수 있도록 돕는 라이브러리입니다. RAG(Retrieval-Augmented Generation), 채팅 메모리, 도구 사용 등의 기능을 제공합니다.";
         }
 
-        String systemPrompt = PromptEngineeringUtil.createFewShotLearningPrompt(context);
+        String systemPrompt = promptTemplateManager.render("few-shot-learning", Map.of("context", context));
         String fullPrompt = systemPrompt + "\n\nQuestion: " + query;
 
-        OllamaChatModel chatModel = createChatModel();
         String response = generateResponse(chatModel, fullPrompt);
 
         log.info("Few-shot 응답 생성 완료");
@@ -105,10 +102,9 @@ public class EgovPromptTestController {
             @RequestParam(value = "query", defaultValue = "마이크로서비스 아키텍처를 설명해주세요") String query) {
         log.info("Chain-of-Thought 테스트 - 쿼리: {}", query);
 
-        String systemPrompt = PromptEngineeringUtil.createChainOfThoughtPrompt();
+        String systemPrompt = promptTemplateManager.get("chain-of-thought");
         String fullPrompt = systemPrompt + "\n\nQuestion: " + query;
 
-        OllamaChatModel chatModel = createChatModel();
         String response = generateResponse(chatModel, fullPrompt);
 
         log.info("Chain-of-Thought 응답 생성 완료");
@@ -124,9 +120,8 @@ public class EgovPromptTestController {
             @RequestParam(value = "requirement", defaultValue = "간단한 REST API 컨트롤러 작성") String requirement) {
         log.info("코드 생성 테스트 - 언어: {}, 요구사항: {}", language, requirement);
 
-        String prompt = PromptEngineeringUtil.createCodeGenerationPrompt(language, requirement);
+        String prompt = promptTemplateManager.render("code-generation", Map.of("language", language, "requirement", requirement));
 
-        OllamaChatModel chatModel = createChatModel();
         String response = generateResponse(chatModel, prompt);
 
         log.info("코드 생성 완료");
@@ -142,9 +137,8 @@ public class EgovPromptTestController {
             @RequestParam(value = "requirement", defaultValue = "리스트를 정렬하는 함수") String requirement) {
         log.info("Zero-shot 코드 생성 테스트 - 언어: {}, 요구사항: {}", language, requirement);
 
-        String prompt = PromptEngineeringUtil.createZeroShotCodeGenerationPrompt(language, requirement);
+        String prompt = promptTemplateManager.render("zero-shot-code-generation", Map.of("language", language, "requirement", requirement));
 
-        OllamaChatModel chatModel = createChatModel();
         String response = generateResponse(chatModel, prompt);
 
         log.info("Zero-shot 코드 생성 완료");
@@ -161,13 +155,12 @@ public class EgovPromptTestController {
         log.info("구조화된 출력 테스트 - 쿼리: {}", query);
 
         if (structure == null || structure.isBlank()) {
-            structure = PromptEngineeringUtil.getDefaultStructuredFormat();
+            structure = promptTemplateManager.get("default-structured-format");
         }
 
-        String systemPrompt = PromptEngineeringUtil.createStructuredOutputPrompt(structure);
+        String systemPrompt = promptTemplateManager.render("structured-output", Map.of("structure", structure));
         String fullPrompt = systemPrompt + "\n\nQuestion: " + query;
 
-        OllamaChatModel chatModel = createChatModel();
         String response = generateResponse(chatModel, fullPrompt);
 
         log.info("구조화된 출력 생성 완료");
@@ -183,9 +176,8 @@ public class EgovPromptTestController {
             @RequestParam(value = "task", defaultValue = "RESTful API 설계 원칙을 설명해주세요") String task) {
         log.info("역할 기반 프롬프트 테스트 - 역할: {}, 작업: {}", role, task);
 
-        String prompt = PromptEngineeringUtil.createRoleBasedPrompt(role, task);
+        String prompt = promptTemplateManager.render("role-based", Map.of("role", role, "task", task));
 
-        OllamaChatModel chatModel = createChatModel();
         String response = generateResponse(chatModel, prompt);
 
         log.info("역할 기반 응답 생성 완료");
@@ -201,9 +193,8 @@ public class EgovPromptTestController {
             @RequestParam(value = "task", defaultValue = "인덱스 최적화 전략을 제안해주세요") String task) {
         log.info("Zero-shot 역할 기반 테스트 - 역할: {}, 작업: {}", role, task);
 
-        String prompt = PromptEngineeringUtil.createZeroShotRoleBasedPrompt(role, task);
+        String prompt = promptTemplateManager.render("zero-shot-role-based", Map.of("role", role, "task", task));
 
-        OllamaChatModel chatModel = createChatModel();
         String response = generateResponse(chatModel, prompt);
 
         log.info("Zero-shot 역할 기반 응답 생성 완료");
@@ -217,9 +208,8 @@ public class EgovPromptTestController {
     public String testStepByStep(@RequestParam(value = "task", defaultValue = "CI/CD 파이프라인 구축하기") String task) {
         log.info("단계별 작업 분해 테스트 - 작업: {}", task);
 
-        String prompt = PromptEngineeringUtil.createStepByStepPrompt(task);
+        String prompt = promptTemplateManager.render("step-by-step", Map.of("task", task));
 
-        OllamaChatModel chatModel = createChatModel();
         String response = generateResponse(chatModel, prompt);
 
         log.info("단계별 분해 응답 생성 완료");
@@ -235,9 +225,8 @@ public class EgovPromptTestController {
             @RequestBody String content) {
         log.info("품질 검증 테스트 - 기준: {}", criteria);
 
-        String prompt = PromptEngineeringUtil.createQualityCheckPrompt(criteria, content);
+        String prompt = promptTemplateManager.render("quality-check", Map.of("content", content, "criteria", criteria));
 
-        OllamaChatModel chatModel = createChatModel();
         String response = generateResponse(chatModel, prompt);
 
         log.info("품질 검증 응답 생성 완료");
@@ -268,10 +257,17 @@ public class EgovPromptTestController {
                         map.getOrDefault("answer", "")))
                 .collect(Collectors.toList());
 
-        String systemPrompt = PromptEngineeringUtil.createDynamicFewShotPrompt(context, examples);
+        StringBuilder promptBuilder = new StringBuilder();
+        promptBuilder.append(promptTemplateManager.render("dynamic-few-shot-header", Map.of("context", context)));
+        promptBuilder.append("\n[Examples]\n\n");
+        for (Map.Entry<String, String> example : examples) {
+            promptBuilder.append("Question: ").append(example.getKey()).append("\n");
+            promptBuilder.append("Answer: ").append(example.getValue()).append("\n\n");
+        }
+        promptBuilder.append(promptTemplateManager.get("dynamic-few-shot-footer"));
+        String systemPrompt = promptBuilder.toString();
         String fullPrompt = systemPrompt + "\n\nQuestion: " + query;
 
-        OllamaChatModel chatModel = createChatModel();
         String response = generateResponse(chatModel, fullPrompt);
 
         log.info("동적 Few-shot 응답 생성 완료");
@@ -286,15 +282,13 @@ public class EgovPromptTestController {
             @RequestParam(value = "query", defaultValue = "Kubernetes의 주요 개념을 설명해주세요") String query) {
         log.info("프롬프트 비교 테스트 - 쿼리: {}", query);
 
-        OllamaChatModel chatModel = createChatModel();
-
         // Zero-shot 테스트
-        String zeroShotPrompt = PromptEngineeringUtil.createZeroShotPrompt() + "\n\nQuestion: " + query;
+        String zeroShotPrompt = promptTemplateManager.get("zero-shot") + "\n\nQuestion: " + query;
         String zeroShotResponse = generateResponse(chatModel, zeroShotPrompt);
 
         // Few-shot 테스트
         String context = "Kubernetes는 컨테이너 오케스트레이션 플랫폼입니다. Pod, Service, Deployment, Namespace 등의 개념을 통해 컨테이너를 관리합니다.";
-        String fewShotPrompt = PromptEngineeringUtil.createFewShotLearningPrompt(context) + "\n\nQuestion: " + query;
+        String fewShotPrompt = promptTemplateManager.render("few-shot-learning", Map.of("context", context)) + "\n\nQuestion: " + query;
         String fewShotResponse = generateResponse(chatModel, fewShotPrompt);
 
         log.info("프롬프트 비교 응답 생성 완료");
@@ -303,17 +297,6 @@ public class EgovPromptTestController {
                 "zero_shot", zeroShotResponse,
                 "few_shot", fewShotResponse,
                 "query", query);
-    }
-
-    /**
-     * OllamaChatModel 생성 헬퍼 메서드
-     */
-    private OllamaChatModel createChatModel() {
-        return OllamaChatModel.builder()
-                .baseUrl(ollamaBaseUrl)
-                .modelName(defaultModelName)
-                .temperature(defaultTemperature)
-                .build();
     }
 
     /**
