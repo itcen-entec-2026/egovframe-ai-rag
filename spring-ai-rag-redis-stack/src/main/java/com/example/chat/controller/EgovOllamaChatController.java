@@ -19,8 +19,7 @@ import com.example.chat.context.SessionContext;
 import com.example.chat.response.TechnologyResponse;
 import com.example.chat.service.EgovChatSessionService;
 import com.example.chat.service.EgovSessionAwareChatService;
-import com.example.chat.util.EgovJsonPromptTemplates;
-import com.example.chat.util.EgovPromptEngineeringUtil;
+import com.example.chat.util.EgovPromptTemplateManager;
 import com.example.chat.util.EgovResponseCleanerUtil;
 
 import lombok.RequiredArgsConstructor;
@@ -35,6 +34,7 @@ public class EgovOllamaChatController {
     private final OllamaChatModel chatModel;
     private final EgovSessionAwareChatService egovSessionAwareChatService;
     private final EgovChatSessionService egovChatSessionService;
+    private final EgovPromptTemplateManager promptTemplateManager;
 
     /**
      * 일반 응답 생성 (테스트용)
@@ -157,7 +157,7 @@ public class EgovOllamaChatController {
     @GetMapping("/ai/prompt/zero-shot")
     public Map<String, String> zeroShot(
             @RequestParam(value = "message", defaultValue = "Spring Boot란 무엇인가요?") String message) {
-        String prompt = EgovPromptEngineeringUtil.createZeroShotPrompt();
+        String prompt = promptTemplateManager.get("zero-shot");
         String fullPrompt = prompt + "\n\nQuestion: " + message;
         return Map.of("generation", this.chatModel.call(fullPrompt));
     }
@@ -169,7 +169,7 @@ public class EgovOllamaChatController {
     public Map<String, String> contextBased(
             @RequestParam(value = "message", defaultValue = "Spring Boot의 특징은?") String message,
             @RequestParam(value = "context", defaultValue = "Spring Boot is a Java-based framework for developing web applications. It provides auto-configuration and embedded servers.") String context) {
-        String prompt = EgovPromptEngineeringUtil.createContextBasedPrompt(context);
+        String prompt = promptTemplateManager.format("context-based", Map.of("context", context));
         String fullPrompt = prompt + "\n\nQuestion: " + message;
         return Map.of("generation", this.chatModel.call(fullPrompt));
     }
@@ -181,7 +181,7 @@ public class EgovOllamaChatController {
     public Map<String, String> fewShot(
             @RequestParam(value = "message", defaultValue = "Python의 특징은?") String message,
             @RequestParam(value = "context", defaultValue = "Spring Boot is a Java-based framework for developing web applications. It provides auto-configuration and embedded servers.") String context) {
-        String prompt = EgovPromptEngineeringUtil.createFewShotLearningPrompt(context);
+        String prompt = promptTemplateManager.format("few-shot-learning", Map.of("context", context));
         String fullPrompt = prompt + "\n\nQuestion: " + message;
         return Map.of("generation", this.chatModel.call(fullPrompt));
     }
@@ -192,7 +192,7 @@ public class EgovOllamaChatController {
     @GetMapping("/ai/prompt/chain-of-thought")
     public Map<String, String> chainOfThought(
             @RequestParam(value = "message", defaultValue = "마이크로서비스 아키텍처의 장단점은?") String message) {
-        String prompt = EgovPromptEngineeringUtil.createChainOfThoughtPrompt();
+        String prompt = promptTemplateManager.get("chain-of-thought");
         String fullPrompt = prompt + "\n\nQuestion: " + message;
         return Map.of("generation", this.chatModel.call(fullPrompt));
     }
@@ -204,7 +204,7 @@ public class EgovOllamaChatController {
     public Map<String, String> codeGeneration(
             @RequestParam(value = "requirement", defaultValue = "사용자 정보를 저장하는 REST API 엔드포인트 생성") String requirement,
             @RequestParam(value = "language", defaultValue = "Java") String language) {
-        String prompt = EgovPromptEngineeringUtil.createCodeGenerationPrompt(language, requirement);
+        String prompt = promptTemplateManager.format("code-generation", Map.of("language", language, "requirement", requirement));
         return Map.of("generation", this.chatModel.call(prompt));
     }
 
@@ -215,7 +215,7 @@ public class EgovOllamaChatController {
     public Map<String, String> zeroShotCodeGeneration(
             @RequestParam(value = "requirement", defaultValue = "사용자 인증 시스템 구현") String requirement,
             @RequestParam(value = "language", defaultValue = "Java") String language) {
-        String prompt = EgovPromptEngineeringUtil.createZeroShotCodeGenerationPrompt(language, requirement);
+        String prompt = promptTemplateManager.format("zero-shot-code-generation", Map.of("language", language, "requirement", requirement));
         return Map.of("generation", this.chatModel.call(prompt));
     }
 
@@ -225,8 +225,8 @@ public class EgovOllamaChatController {
     @GetMapping("/ai/prompt/structured")
     public Map<String, String> structured(
             @RequestParam(value = "message", defaultValue = "Spring Boot의 특징을 설명해주세요") String message) {
-        String structure = EgovPromptEngineeringUtil.getDefaultStructuredFormat();
-        String prompt = EgovPromptEngineeringUtil.createStructuredOutputPrompt(structure);
+        String structure = promptTemplateManager.get("default-structured-format");
+        String prompt = promptTemplateManager.format("structured-output", Map.of("structure", structure));
         String fullPrompt = prompt + "\n\nQuestion: " + message;
         return Map.of("generation", this.chatModel.call(fullPrompt));
     }
@@ -238,7 +238,7 @@ public class EgovOllamaChatController {
     public Map<String, String> roleBased(
             @RequestParam(value = "task", defaultValue = "웹 보안 강화 방법 제시") String task,
             @RequestParam(value = "role", defaultValue = "보안 전문가") String role) {
-        String prompt = EgovPromptEngineeringUtil.createRoleBasedPrompt(role, task);
+        String prompt = promptTemplateManager.format("role-based", Map.of("role", role, "task", task));
         return Map.of("generation", this.chatModel.call(prompt));
     }
 
@@ -249,7 +249,7 @@ public class EgovOllamaChatController {
     public Map<String, String> zeroShotRoleBased(
             @RequestParam(value = "task", defaultValue = "데이터베이스 최적화 방법 제시") String task,
             @RequestParam(value = "role", defaultValue = "데이터베이스 전문가") String role) {
-        String prompt = EgovPromptEngineeringUtil.createZeroShotRoleBasedPrompt(role, task);
+        String prompt = promptTemplateManager.format("zero-shot-role-based", Map.of("role", role, "task", task));
         return Map.of("generation", this.chatModel.call(prompt));
     }
 
@@ -259,7 +259,7 @@ public class EgovOllamaChatController {
     @GetMapping("/ai/prompt/step-by-step")
     public Map<String, String> stepByStep(
             @RequestParam(value = "task", defaultValue = "마이크로서비스 아키텍처로 전환하기") String task) {
-        String prompt = EgovPromptEngineeringUtil.createStepByStepPrompt(task);
+        String prompt = promptTemplateManager.format("step-by-step", Map.of("task", task));
         return Map.of("generation", this.chatModel.call(prompt));
     }
 
@@ -270,7 +270,7 @@ public class EgovOllamaChatController {
     public Map<String, String> qualityCheck(
             @RequestParam(value = "content", defaultValue = "Spring Boot는 Java 기반의 웹 애플리케이션 개발을 위한 프레임워크입니다.") String content,
             @RequestParam(value = "criteria", defaultValue = "정확성, 완성도, 가독성, 실용성") String criteria) {
-        String prompt = EgovPromptEngineeringUtil.createQualityCheckPrompt(criteria, content);
+        String prompt = promptTemplateManager.format("quality-check", Map.of("content", content, "criteria", criteria));
         return Map.of("generation", this.chatModel.call(prompt));
     }
 
@@ -291,8 +291,16 @@ public class EgovOllamaChatController {
                 Map.entry("What are the benefits of Spring Boot?",
                         "Spring Boot reduces boilerplate code and provides rapid development capabilities."));
 
-        String prompt = EgovPromptEngineeringUtil.createDynamicFewShotPrompt(context, examples);
-        String fullPrompt = prompt + "\n\nQuestion: " + message;
+        StringBuilder promptBuilder = new StringBuilder();
+        promptBuilder.append(promptTemplateManager.format("dynamic-few-shot-header", Map.of("context", context)));
+        promptBuilder.append("\n[Examples]\n\n");
+        for (Map.Entry<String, String> example : examples) {
+            promptBuilder.append("Question: ").append(example.getKey()).append("\n");
+            promptBuilder.append("Answer: ").append(example.getValue()).append("\n\n");
+        }
+        promptBuilder.append(promptTemplateManager.get("dynamic-few-shot-footer"));
+
+        String fullPrompt = promptBuilder + "\n\nQuestion: " + message;
         return Map.of("generation", this.chatModel.call(fullPrompt));
     }
 
@@ -304,8 +312,8 @@ public class EgovOllamaChatController {
             @RequestParam(value = "message", defaultValue = "Docker의 장점은?") String message,
             @RequestParam(value = "context", defaultValue = "Spring Boot is a Java-based framework for developing web applications.") String context) {
 
-        String zeroShotPrompt = EgovPromptEngineeringUtil.createContextBasedPrompt(context);
-        String fewShotPrompt = EgovPromptEngineeringUtil.createFewShotLearningPrompt(context);
+        String zeroShotPrompt = promptTemplateManager.format("context-based", Map.of("context", context));
+        String fewShotPrompt = promptTemplateManager.format("few-shot-learning", Map.of("context", context));
 
         String zeroShotFull = zeroShotPrompt + "\n\nQuestion: " + message;
         String fewShotFull = fewShotPrompt + "\n\nQuestion: " + message;
@@ -333,7 +341,7 @@ public class EgovOllamaChatController {
     public Map<String, String> debugTechnologyInfo(
             @RequestParam(value = "query", defaultValue = "Spring Boot에 대해 설명해주세요") String query) {
         try {
-            String jsonPrompt = EgovJsonPromptTemplates.createTechnologyInfoPrompt(query);
+            String jsonPrompt = promptTemplateManager.format("technology-info-json", Map.of("query", query));
             String rawResponse = chatModel.call(jsonPrompt);
 
             // 응답 정리 테스트
