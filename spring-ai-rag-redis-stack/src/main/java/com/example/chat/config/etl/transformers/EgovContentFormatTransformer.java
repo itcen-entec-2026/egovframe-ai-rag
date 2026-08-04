@@ -105,12 +105,13 @@ public class EgovContentFormatTransformer implements DocumentTransformer {
         
         // 공백 정규화
         if (normalizeWhitespace) {
-            normalizedContent = normalizedContent.replaceAll("\\s+", " ");
+            normalizedContent = normalizedContent.replaceAll("[^\\S\\r\\n]+", " ");
         }
         
-        // 줄바꿈 정규화
+        // 줄바꿈 정규화 (CRLF -> LF 통일 후 빈 줄 제거)
         if (normalizeNewlines) {
-            normalizedContent = normalizedContent.replaceAll("\\n{2,}", "\\n");
+            normalizedContent = normalizedContent.replaceAll("\\r\\n?", "\n");
+            normalizedContent = normalizedContent.replaceAll("\n{2,}", "\n");
         }
         
         // 코드 블록 제거
