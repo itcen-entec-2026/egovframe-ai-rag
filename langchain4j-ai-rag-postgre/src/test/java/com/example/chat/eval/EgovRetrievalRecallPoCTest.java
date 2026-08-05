@@ -34,9 +34,9 @@ class EgovRetrievalRecallPoCTest {
     private static final Logger log = LoggerFactory.getLogger(EgovRetrievalRecallPoCTest.class);
 
     private static final String TABLE = "document_embeddings";
-    private static final int TOP_K = 3;
+    static final int TOP_K = 3;
 
-    private static final String REDIS_DOCUMENT = (
+    static final String REDIS_DOCUMENT = (
             "# 리액티브 레디스 접근 모듈\n"
             + "ReactiveRedisTemplate은 논블로킹 방식으로 캐시 항목을 조회하고 저장하며 키 만료 시간을 관리합니다. "
             + "리액티브 세션 저장소는 요청 스레드를 점유하지 않고 비동기 결과를 발행합니다. "
@@ -58,7 +58,7 @@ class EgovRetrievalRecallPoCTest {
             + "명령 실행 순서가 중요한 업무는 병렬 연산을 제한하고 구독 체인에서 순차 결합 연산자를 사용합니다. "
             + "구독 취소 신호가 전달되면 남은 네트워크 작업과 버퍼를 해제하여 불필요한 자원 사용을 막습니다. "
             + "부하 시험은 생산 환경과 비슷한 키 분포와 값 크기를 사용하여 병목 지점을 사전에 확인합니다. ").repeat(8);
-    private static final String PGVECTOR_DOCUMENT = (
+    static final String PGVECTOR_DOCUMENT = (
             "# PostgreSQL 임베딩 검색 모듈\n"
             + "pgvector 확장은 문서 임베딩을 벡터 열에 저장하고 코사인 거리 기준으로 유사한 청크를 검색합니다. "
             + "질의 임베딩과 저장 벡터의 차원은 같아야 하며 모델 교체 시 전체 색인의 호환성을 점검합니다. "
@@ -69,7 +69,7 @@ class EgovRetrievalRecallPoCTest {
             + "업무 분류와 접근 권한 조건은 메타데이터 열에 저장하고 벡터 후보 집합과 함께 안전하게 제한합니다. "
             + "삭제와 갱신이 반복되는 테이블은 진공 작업과 재색인 주기를 정해 인덱스 팽창을 관리합니다. "
             + "검색 품질 시험은 고정 질의 집합으로 정확도와 지연 시간을 함께 기록하여 설정 변경을 비교합니다. ").repeat(8);
-    private static final String CRYPTO_DOCUMENT = (
+    static final String CRYPTO_DOCUMENT = (
             "# 표준프레임워크 데이터 암호화\n"
             + "ARIA 대칭키 암복호화 서비스는 환경 설정의 민감한 값을 보호하고 허가된 애플리케이션만 복호화합니다. "
             + "PBE 방식은 비밀번호와 솔트를 이용해 키를 유도하며 반복 횟수와 알고리즘 식별자를 설정으로 관리합니다. "
@@ -80,7 +80,7 @@ class EgovRetrievalRecallPoCTest {
             + "초기화 벡터와 난수 값은 안전한 생성기를 사용하고 동일 키에서 값을 재사용하지 않도록 검사합니다. "
             + "암복호화 API는 입력 길이와 문자 인코딩을 검증하고 오류 메시지에 민감 정보가 포함되지 않게 합니다. "
             + "보안 점검에서는 허용 알고리즘 목록과 키 접근 권한을 확인하고 폐기된 키의 사용을 차단합니다. ").repeat(8);
-    private static final String BATCH_DOCUMENT = (
+    static final String BATCH_DOCUMENT = (
             "# 대용량 배치 실행 모듈\n"
             + "배치 작업은 청크 단위 커밋으로 읽기, 처리, 쓰기 구간을 나누고 성공한 실행 위치를 체크포인트에 보존합니다. "
             + "작업 실패 후 재시작하면 완료된 구간을 건너뛰고 마지막 저장 지점부터 남은 데이터를 다시 수행합니다. "
@@ -91,7 +91,7 @@ class EgovRetrievalRecallPoCTest {
             + "단계 리스너는 실행 전후 통계를 남기되 업무 데이터 변경은 처리기와 기록기에서 일관되게 수행합니다. "
             + "재실행 가능한 작업은 외부 시스템 호출에도 업무 키를 전달하여 중복 반영을 방지합니다. "
             + "스케줄러는 이전 실행의 종료 상태를 확인하고 장시간 작업이 겹치지 않도록 동시 실행을 제한합니다. ").repeat(8);
-    private static final String CACHE_DISTRACTOR_DOCUMENT = (
+    static final String CACHE_DISTRACTOR_DOCUMENT = (
             "# 로컬 파일 캐싱과 객체 저장소\n"
             + "애플리케이션의 캐시 저장소는 원격 객체 파일을 로컬 디스크에 보관하여 반복 다운로드 비용을 줄입니다. "
             + "비동기 조회 작업은 파일 경로와 수정 시각을 검사한 뒤 작업 큐에서 원본 스토리지 접근을 수행합니다. "
@@ -103,7 +103,7 @@ class EgovRetrievalRecallPoCTest {
             + "파일 권한은 애플리케이션 계정으로 제한하고 심볼릭 링크를 통한 허용 경로 이탈을 검사합니다. "
             + "임시 파일은 다운로드 완료 후 원자적으로 이름을 변경하고 비정상 종료 시 남은 항목을 주기적으로 정리합니다. ").repeat(8);
 
-    private static final List<SeedQuestion> QA_SEEDS = List.of(
+    static final List<SeedQuestion> QA_SEEDS = List.of(
             new SeedQuestion("논블로킹 캐시 저장소에서 비동기 조회를 구성하는 방법", "doc-reactive-redis.md"),
             new SeedQuestion("Lettuce 연결의 대량 스트림 부하 제어 방식", "doc-reactive-redis.md"),
             new SeedQuestion("임베딩 문서를 코사인 기준으로 유사 검색하는 인덱스 구성", "doc-pgvector.md"),
@@ -182,12 +182,12 @@ class EgovRetrievalRecallPoCTest {
         assertThat(recallAtK(List.of("N1", "N2", "N3", "GOLD"), List.of("GOLD"), 3)).isZero();
     }
 
-    private static double recallAtK(List<String> retrieved, List<String> relevant, int k) {
+    static double recallAtK(List<String> retrieved, List<String> relevant, int k) {
         List<String> topK = retrieved.stream().limit(k).toList();
         long hit = relevant.stream().filter(topK::contains).count();
         return (double) hit / relevant.size();
     }
 
-    private record SeedQuestion(String question, String goldDocId) {
+    record SeedQuestion(String question, String goldDocId) {
     }
 }

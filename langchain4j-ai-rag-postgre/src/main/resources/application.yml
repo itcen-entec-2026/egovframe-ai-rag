@@ -81,6 +81,17 @@ document:
   # 청크 크기 설정 (토큰 단위)
   chunk-size: 4000
 
+  # 한국어 문장경계 인지 청킹 설정
+  chunking:
+    korean-sentence:
+      # 활성화 여부. false(기본)이면 기존 DocumentSplitters.recursive 방식만 사용 (기존 동작 유지)
+      # 한국어가 위주인 문서에서 효과적이며, 영어 비중이 높은 문서에는 적합하지 않을 수 있음
+      # 빈 줄(연속 개행) 기준 문단 경계까지 쓰려면 위 normalization.normalize-newlines 를 false 로 둔다.
+      # true(기본)이면 연속 개행이 1개로 축약되어 빈 줄 경계는 동작하지 않고, 마크다운 블록·코드펜스 경계만 적용된다.
+      enabled: false
+      # 문장 단위 오버랩 최대 문자 수. 미설정 시 chunk-size 의 10%(최소 50)
+      # overlap-size-chars: 400
+
   # 최소 청크 크기 (문자 단위)
   min-chunk-size-chars: 350
 

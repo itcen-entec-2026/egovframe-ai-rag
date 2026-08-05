@@ -2,6 +2,7 @@ package com.example.chat.config.etl;
 
 import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.vectorstore.redis.RedisVectorStore;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,6 +14,7 @@ import com.example.chat.config.etl.readers.EgovMarkdownReader;
 import com.example.chat.config.etl.readers.EgovPdfReader;
 import com.example.chat.config.etl.transformers.EgovEnhancedDocumentTransformer;
 import com.example.chat.config.etl.transformers.EgovContentFormatTransformer;
+import com.example.chat.config.etl.transformers.EgovKoreanSentenceSplitter;
 import com.example.chat.config.etl.transformers.EgovPiiMaskingTransformer;
 import com.example.chat.config.etl.writers.EgovVectorStoreWriter;
 
@@ -75,9 +77,10 @@ public class EgovETLPipelineConfig {
     }
 
     @Bean
-    public EgovEnhancedDocumentTransformer egovEnhancedDocumentTransformer(OllamaChatModel ollamaChatModel) {
+    public EgovEnhancedDocumentTransformer egovEnhancedDocumentTransformer(OllamaChatModel ollamaChatModel,
+            ObjectProvider<EgovKoreanSentenceSplitter> koreanSentenceSplitterProvider) {
         log.info("EgovEnhancedDocumentTransformer 빈 생성");
-        return new EgovEnhancedDocumentTransformer(ollamaChatModel);
+        return new EgovEnhancedDocumentTransformer(ollamaChatModel, koreanSentenceSplitterProvider);
     }
 
     @Bean

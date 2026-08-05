@@ -6,6 +6,7 @@ import dev.langchain4j.data.document.DocumentTransformer;
 import dev.langchain4j.data.document.splitter.DocumentSplitters;
 import dev.langchain4j.data.segment.TextSegment;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -25,15 +26,20 @@ public class EgovEnhancedDocumentTransformer implements DocumentTransformer {
 
     public EgovEnhancedDocumentTransformer(
             @Value("${document.chunk-size}") int chunkSize,
-            @Value("${document.min-chunk-size-chars}") int minChunkSizeChars) {
+            @Value("${document.min-chunk-size-chars}") int minChunkSizeChars,
+            ObjectProvider<EgovKoreanSentenceSplitter> koreanSentenceSplitterProvider) {
 
         // LangChain4j의 DocumentSplitter 생성
         // 토큰 기반 분할 (최대 토큰 수, 오버랩)
-        this.documentSplitter = DocumentSplitters.recursive(
+        EgovKoreanSentenceSplitter koreanSentenceSplitter = koreanSentenceSplitterProvider.getIfAvailable();
+        this.documentSplitter = koreanSentenceSplitter != null ? koreanSentenceSplitter : DocumentSplitters.recursive(
                 chunkSize, // 최대 토큰 수
                 Math.max(chunkSize / 10, 50) // 오버랩 (청크 크기의 10%)
         );
 
+        if (koreanSentenceSplitter != null) {
+            log.info("문서 분할기 선택 - splitter: {}", this.documentSplitter.getClass().getSimpleName());
+        }
         log.info("EnhancedDocumentTransformer 초기화 - chunkSize: {}, minChunkSize: {}",
                 chunkSize, minChunkSizeChars);
     }
