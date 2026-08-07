@@ -181,13 +181,13 @@ Flux<String> 스트리밍 응답
   - DOCX 활성화 예시: `document.docx-path: file:C:/workspace-test/upload/data/**/*.docx`
   - HWP 활성화 예시: `document.hwp-path: file:C:/workspace-test/upload/data/**/*.hwp`
   - HWPX 활성화 예시: `document.hwpx-path: file:C:/workspace-test/upload/data/**/*.hwpx`
-- 파일 업로드(웹 UI)는 마크다운(.md) 파일만 지원한다. PDF, DOCX, HWP, HWPX는 서버 측 경로에 파일을 직접 배치한 뒤 재인덱싱으로 처리한다.
+- 파일 업로드(웹 UI)는 `.md`/`.hwp`/`.hwpx` 3종을 지원한다(HWP/HWPX는 `document.hwp-path`/`hwpx-path` 설정 필요). PDF·DOCX는 업로드 미지원이므로 서버 측 경로에 파일을 직접 배치한 뒤 재인덱싱으로 처리한다(리더는 md/pdf/docx/hwp/hwpx 5종을 색인).
 - 알려진 제약: HWPX 파일에서 글머리기호·번호 매기기 단락의 텍스트는 추출에서 제외된다(hwpxlib insertParaHead=false 설정으로 NPE 회피).
 
 ## 실행
 
 1. 애플리케이션을 실행하면 도큐먼트 생성 및 임베딩, 적재가 실행된다. 수동으로 실행하려면 메인 화면의 `문서 재인덱싱` 버튼을 클릭한다.
-2. `문서 업로드` 버튼으로 Markdown(.md) 파일을 업로드할 수 있다. PDF, HWP, HWPX 파일은 `application.yml`의 각 경로 속성(`document.pdf-path`, `document.hwp-path`, `document.hwpx-path`)에 지정한 서버 경로에 직접 배치한 뒤 재인덱싱한다.
+2. `문서 업로드` 버튼으로 `.md`/`.hwp`/`.hwpx` 파일을 업로드할 수 있다(HWP/HWPX는 `document.hwp-path`/`document.hwpx-path` 설정 필요). PDF·DOCX 파일은 업로드 미지원이므로 `application.yml`의 각 경로 속성에 지정한 서버 경로에 직접 배치한 뒤 재인덱싱한다.
 3. 메인 화면의 `RAG 채팅 모드`, `일반 채팅 모드` 버튼으로 RAG가 적용된 질의 답변, 일반적인 질의 답변을 받을 수 있다.
 4. 기본 접속 주소: `http://localhost:8080`
 

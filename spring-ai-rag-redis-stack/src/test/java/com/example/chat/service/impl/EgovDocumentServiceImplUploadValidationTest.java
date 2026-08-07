@@ -2,15 +2,19 @@ package com.example.chat.service.impl;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.nio.file.Path;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * {@link EgovDocumentServiceImpl#uploadMarkdownFiles(MultipartFile[])}의 검증 분기를 검증한다.
+ * {@link EgovDocumentServiceImpl#uploadDocumentFiles(MultipartFile[])}의 검증 분기를 검증한다.
  *
  * <p>업로드 메서드는 디스크 저장(transferTo) 이전에 파일 개수/이름/확장자/크기 검증을
  * 수행하고, 위반 시 {@code success=false}와 안내 메시지를 담은 {@code Map}을 반환한다(예외 미사용).
@@ -34,7 +38,7 @@ class EgovDocumentServiceImplUploadValidationTest {
     @Test
     @DisplayName("파일 배열이 null이면 실패와 안내 메시지를 반환한다")
     void rejectsNullArray() {
-        Map<String, Object> result = service.uploadMarkdownFiles(null);
+        Map<String, Object> result = service.uploadDocumentFiles(null);
 
         assertThat(result.get("success")).isEqualTo(false);
         assertThat(result.get("message")).isEqualTo("업로드할 파일이 없습니다.");
@@ -43,7 +47,7 @@ class EgovDocumentServiceImplUploadValidationTest {
     @Test
     @DisplayName("파일이 0개이면 실패와 안내 메시지를 반환한다")
     void rejectsEmptyArray() {
-        Map<String, Object> result = service.uploadMarkdownFiles(new MultipartFile[0]);
+        Map<String, Object> result = service.uploadDocumentFiles(new MultipartFile[0]);
 
         assertThat(result.get("success")).isEqualTo(false);
         assertThat(result.get("message")).isEqualTo("업로드할 파일이 없습니다.");
@@ -57,7 +61,7 @@ class EgovDocumentServiceImplUploadValidationTest {
             files[i] = md("doc" + i + ".md", 10);
         }
 
-        Map<String, Object> result = service.uploadMarkdownFiles(files);
+        Map<String, Object> result = service.uploadDocumentFiles(files);
 
         assertThat(result.get("success")).isEqualTo(false);
         assertThat(result.get("message")).isEqualTo("최대 5개 파일만 업로드할 수 있습니다.");
@@ -68,21 +72,21 @@ class EgovDocumentServiceImplUploadValidationTest {
     void rejectsBlankFilename() {
         MultipartFile[] files = { md("", 10) };
 
-        Map<String, Object> result = service.uploadMarkdownFiles(files);
+        Map<String, Object> result = service.uploadDocumentFiles(files);
 
         assertThat(result.get("success")).isEqualTo(false);
         assertThat(result.get("message")).isEqualTo("파일명이 없습니다.");
     }
 
     @Test
-    @DisplayName(".md가 아닌 확장자는 거부한다")
+    @DisplayName("지원하지 않는 확장자는 거부한다")
     void rejectsNonMarkdownExtension() {
         MultipartFile[] files = { md("note.txt", 10) };
 
-        Map<String, Object> result = service.uploadMarkdownFiles(files);
+        Map<String, Object> result = service.uploadDocumentFiles(files);
 
         assertThat(result.get("success")).isEqualTo(false);
-        assertThat(result.get("message")).isEqualTo("마크다운(.md) 파일만 업로드 가능합니다.");
+        assertThat(result.get("message")).isEqualTo("지원하지 않는 파일 형식입니다. (.md, .hwp, .hwpx 파일만 업로드 가능합니다.)");
     }
 
     @Test
@@ -90,7 +94,7 @@ class EgovDocumentServiceImplUploadValidationTest {
     void rejectsSingleFileOver5Mb() {
         MultipartFile[] files = { md("big.md", 5 * 1024 * 1024 + 1) };
 
-        Map<String, Object> result = service.uploadMarkdownFiles(files);
+        Map<String, Object> result = service.uploadDocumentFiles(files);
 
         assertThat(result.get("success")).isEqualTo(false);
         assertThat(result.get("message")).isEqualTo("파일당 최대 5MB까지만 업로드할 수 있습니다.");
@@ -105,9 +109,69 @@ class EgovDocumentServiceImplUploadValidationTest {
             files[i] = md("doc" + i + ".md", 5 * 1024 * 1024);
         }
 
-        Map<String, Object> result = service.uploadMarkdownFiles(files);
+        Map<String, Object> result = service.uploadDocumentFiles(files);
 
         assertThat(result.get("success")).isEqualTo(false);
         assertThat(result.get("message")).isEqualTo("총 20MB를 초과할 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName(".hwp 확장자는 허용하되 경로 미설정 시 안내 메시지와 함께 거부한다")
+    void rejectsHwpWhenPathNotConfigured() {
+        // @Value 주입 없이 생성한 인스턴스이므로 hwp-path가 null인 상황을 재현한다.
+        MultipartFile[] files = { md("doc.hwp", 10) };
+
+        Map<String, Object> result = service.uploadDocumentFiles(files);
+
+        assertThat(result.get("success")).isEqualTo(false);
+        assertThat(result.get("message"))
+                .isEqualTo(".hwp 파일을 저장할 문서 경로가 설정되지 않았습니다. (spring.ai.document.hwp-path 설정 필요)");
+    }
+
+    @Test
+    @DisplayName("확장자는 대소문자를 구분하지 않고 인식한다 (.HWPX)")
+    void acceptsUppercaseExtension() {
+        MultipartFile[] files = { md("doc.HWPX", 10) };
+
+        Map<String, Object> result = service.uploadDocumentFiles(files);
+
+        // 확장자 검증은 통과하고, 경로 미설정 단계에서 거부된다.
+        assertThat(result.get("message"))
+                .isEqualTo(".hwpx 파일을 저장할 문서 경로가 설정되지 않았습니다. (spring.ai.document.hwpx-path 설정 필요)");
+    }
+
+    @Test
+    @DisplayName("경로 패턴에서 업로드 기본 디렉토리를 추출한다")
+    void resolvesUploadBaseDir() {
+        assertThat(EgovDocumentServiceImpl.resolveUploadBaseDir("file:C:/data/**/*.md")).isEqualTo("C:/data");
+        assertThat(EgovDocumentServiceImpl.resolveUploadBaseDir("file:/var/docs/**/*.hwpx")).isEqualTo("/var/docs");
+        assertThat(EgovDocumentServiceImpl.resolveUploadBaseDir("/var/docs")).isEqualTo("/var/docs");
+        assertThat(EgovDocumentServiceImpl.resolveUploadBaseDir("classpath:docs/**/*.md")).isNull();
+        assertThat(EgovDocumentServiceImpl.resolveUploadBaseDir(null)).isNull();
+        assertThat(EgovDocumentServiceImpl.resolveUploadBaseDir("  ")).isNull();
+    }
+
+    @TempDir
+    Path tempDir;
+
+    @Test
+    @DisplayName("혼합 배치에서 일부 확장자의 문서 경로가 미설정이면 어떤 파일도 저장하지 않고 실패한다")
+    void mixedBatchWithUnconfiguredPathSavesNothing() {
+        // .md 경로만 설정하고 .hwp 경로는 미설정으로 둔다.
+        ReflectionTestUtils.setField(service, "documentPath", "file:" + tempDir.toString().replace('\\', '/') + "/**/*.md");
+
+        MultipartFile[] files = {
+                md("a.md", 10),
+                md("b.md", 10),
+                new MockMultipartFile("files", "c.hwp", "application/octet-stream", new byte[10])
+        };
+
+        Map<String, Object> result = service.uploadDocumentFiles(files);
+
+        assertThat(result.get("success")).isEqualTo(false);
+        assertThat((String) result.get("message")).contains("document.hwp-path");
+        // 핵심: 실패 응답이면 앞선 .md 파일들도 디스크에 저장돼 있지 않아야 한다.
+        File[] saved = tempDir.toFile().listFiles();
+        assertThat(saved == null ? 0 : saved.length).isZero();
     }
 }
