@@ -4,8 +4,12 @@ import java.util.List;
 
 import org.springframework.ai.document.Document;
 import org.springframework.ai.document.DocumentWriter;
+import org.springframework.ai.vectorstore.filter.Filter;
+import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.ai.vectorstore.redis.RedisVectorStore;
 import org.springframework.stereotype.Component;
+
+import com.example.chat.config.EgovVectorStoreConfig;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +18,9 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 @RequiredArgsConstructor
 public class EgovVectorStoreWriter implements DocumentWriter {
+
+    /** 삭제 필터 하나에 담는 원본 문서 id 최대 개수. */
+    private static final int DELETE_BATCH_SIZE = 200;
 
     private final RedisVectorStore redisVectorStore;
 
@@ -34,11 +41,48 @@ public class EgovVectorStoreWriter implements DocumentWriter {
         }
         
         try {
+            removeStaleChunks(documents);
+
             redisVectorStore.add(documents);
             log.info("벡터 저장소에 {}개 문서 저장 완료", documents.size());
         } catch (Exception e) {
             log.error("벡터 저장소 저장 중 오류 발생", e);
             throw new RuntimeException("벡터 저장소 저장 중 오류 발생", e);
         }
+    }
+
+    /**
+     * 이번 배치에 들어온 원본 문서의 기존 청크를 지운다.
+     *
+     * <p>벡터 저장소는 새 청크를 추가만 하므로, 같은 문서를 다시 색인하면 이전 청크가 그대로
+     * 남아 현재 본문과 검색 결과를 두고 경쟁한다. 원본 문서 id 기준으로 먼저 지운 뒤 저장한다.</p>
+     *
+     * <p>삭제 키는 파일명(source)이 아니라 원본 문서 id다. PDF는 페이지마다 문서를 만들고
+     * 변경 판정도 페이지 단위이므로, 파일명으로 지우면 이번 배치에 없는 페이지까지 사라진다.
+     * 그 페이지는 해시가 그대로라 다시 색인되지 않아 영구히 유실된다.</p>
+     */
+    private void removeStaleChunks(List<Document> documents) {
+        List<String> originalIds = documents.stream()
+                .map(document -> document.getMetadata().get(EgovVectorStoreConfig.ORIGINAL_ID_FIELD))
+                .filter(value -> value instanceof String && !((String) value).isBlank())
+                .map(String.class::cast)
+                .distinct()
+                .toList();
+
+        if (originalIds.isEmpty()) {
+            log.warn("원본 문서 id가 없어 기존 청크 삭제를 건너뜁니다. 저장은 계속 진행합니다.");
+            return;
+        }
+
+        for (int from = 0; from < originalIds.size(); from += DELETE_BATCH_SIZE) {
+            int to = Math.min(from + DELETE_BATCH_SIZE, originalIds.size());
+            List<String> idBatch = originalIds.subList(from, to);
+            Filter.Expression expression = new FilterExpressionBuilder()
+                    .in(EgovVectorStoreConfig.ORIGINAL_ID_FIELD, idBatch.toArray())
+                    .build();
+            redisVectorStore.delete(expression);
+        }
+
+        log.info("기존 청크 삭제 완료: 원본 문서 {}건, 입력 청크 {}개", originalIds.size(), documents.size());
     }
 } 

@@ -75,6 +75,9 @@ public class EgovMarkdownReader implements DocumentReader {
                 .replaceAll("[\\/:*?\"<>|]", "")
                 .replaceAll("\\s+", "-");
         
+        // 분할 이후에도 원본 문서를 식별할 수 있도록 문서 id 를 메타데이터에도 담는다
+        metadata.put("original_id", docId);
+
         log.info("마크다운 문서 로드 완료: {}, 크기: {}바이트", filename, content.length());
         return new Document(docId, content, metadata);
     }
