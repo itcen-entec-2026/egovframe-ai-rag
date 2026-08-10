@@ -67,11 +67,12 @@ class EgovVectorStoreWriterStaleChunkTest {
         ArgumentCaptor<Filter.Expression> captor = ArgumentCaptor.forClass(Filter.Expression.class);
         verify(store, times(1)).delete(captor.capture());
         String rendered = captor.getValue().toString();
+        // 필터 값은 RediSearch 구분자를 이스케이프한 형태로 담긴다
         assertThat(rendered)
                 .contains(EgovVectorStoreConfig.ORIGINAL_ID_FIELD)
-                .contains("doc-a")
-                .contains("pdf-b_1")
-                .contains("pdf-b_2");
+                .contains("doc\\-a")
+                .contains("pdf\\-b_1")
+                .contains("pdf\\-b_2");
     }
 
     @Test
@@ -86,8 +87,8 @@ class EgovVectorStoreWriterStaleChunkTest {
         ArgumentCaptor<Filter.Expression> captor = ArgumentCaptor.forClass(Filter.Expression.class);
         verify(store).delete(captor.capture());
         String rendered = captor.getValue().toString();
-        assertThat(rendered).contains("pdf-guide_2");
-        assertThat(rendered).doesNotContain("pdf-guide_1");
+        assertThat(rendered).contains("pdf\\-guide_2");
+        assertThat(rendered).doesNotContain("pdf\\-guide_1");
     }
 
     @Test
@@ -114,6 +115,17 @@ class EgovVectorStoreWriterStaleChunkTest {
         writer.accept(documents);
 
         verify(store, times(2)).delete(any(Filter.Expression.class));
+    }
+
+    @Test
+    @DisplayName("TAG 필터 값의 구분자 문자를 이스케이프한다")
+    void escapesTagSeparatorCharacters() {
+        // RediSearch는 이스케이프하지 않은 하이픈을 구분자로 보고 질의 파싱에 실패한다.
+        assertThat(EgovVectorStoreWriter.escapeTagValue("doc-abc.md")).isEqualTo("doc\\-abc\\.md");
+        assertThat(EgovVectorStoreWriter.escapeTagValue("hwp-Spring-AI_시험문제_1"))
+                .isEqualTo("hwp\\-Spring\\-AI_시험문제_1");
+        // 한글·영숫자·밑줄은 그대로 둔다
+        assertThat(EgovVectorStoreWriter.escapeTagValue("가나다_123")).isEqualTo("가나다_123");
     }
 
     @Test

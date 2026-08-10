@@ -52,6 +52,31 @@ public class EgovVectorStoreWriter implements DocumentWriter {
     }
 
     /**
+     * RediSearch TAG 필터 값에 쓸 수 있도록 구분자로 해석되는 문자를 이스케이프한다.
+     *
+     * <p>spring-ai의 {@code RedisFilterExpressionConverter}는 TAG 값을 그대로 질의문에 넣는다.
+     * 문서 id에는 항상 하이픈이 들어가는데(<code>doc-</code>, <code>pdf-</code> 등) RediSearch는
+     * 이스케이프하지 않은 하이픈을 구분자로 보고 질의 파싱에 실패한다. 마침표는 파싱은 통과하지만
+     * 토큰이 갈려 값이 일치하지 않는다. 두 경우 모두 문자 앞에 백슬래시를 붙이면 해소된다.</p>
+     *
+     * <p>한글·영숫자·밑줄은 이스케이프 대상이 아니다.</p>
+     *
+     * @param value 원본 TAG 값
+     * @return 이스케이프된 TAG 값
+     */
+    static String escapeTagValue(String value) {
+        StringBuilder escaped = new StringBuilder(value.length() + 8);
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (!Character.isLetterOrDigit(ch) && ch != '_') {
+                escaped.append('\\');
+            }
+            escaped.append(ch);
+        }
+        return escaped.toString();
+    }
+
+    /**
      * 이번 배치에 들어온 원본 문서의 기존 청크를 지운다.
      *
      * <p>벡터 저장소는 새 청크를 추가만 하므로, 같은 문서를 다시 색인하면 이전 청크가 그대로
@@ -77,8 +102,9 @@ public class EgovVectorStoreWriter implements DocumentWriter {
         for (int from = 0; from < originalIds.size(); from += DELETE_BATCH_SIZE) {
             int to = Math.min(from + DELETE_BATCH_SIZE, originalIds.size());
             List<String> idBatch = originalIds.subList(from, to);
+            Object[] escapedIds = idBatch.stream().map(EgovVectorStoreWriter::escapeTagValue).toArray();
             Filter.Expression expression = new FilterExpressionBuilder()
-                    .in(EgovVectorStoreConfig.ORIGINAL_ID_FIELD, idBatch.toArray())
+                    .in(EgovVectorStoreConfig.ORIGINAL_ID_FIELD, escapedIds)
                     .build();
             redisVectorStore.delete(expression);
         }
