@@ -15,12 +15,31 @@ import kr.dogfoot.hwpxlib.object.HWPXFile;
 import kr.dogfoot.hwpxlib.reader.HWPXReader;
 import kr.dogfoot.hwpxlib.tool.textextractor.TextExtractMethod;
 import kr.dogfoot.hwpxlib.tool.textextractor.TextExtractor;
+import kr.dogfoot.hwpxlib.tool.textextractor.TextMarks;
 
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
 public class EgovHwpxReader implements DocumentReader {
+
+    /**
+     * 문단·표 구조를 남기기 위한 추출 표식.
+     *
+     * <p>hwpxlib의 {@code TextExtractor}는 {@code TextMarks}가 {@code null}이면 구분자를 하나도 넣지
+     * 않는다({@code TextBuilder.paraSeparator()} 등이 즉시 반환). 그 결과 문서 전체가 개행 없는 한 줄이
+     * 되고, 표는 셀 값이 이어 붙어 행과 열의 관계가 사라진다.</p>
+     *
+     * <p>문단·표 행·표 셀 세 가지만 지정한다. 컨테이너·도형 등 나머지 표식은 지정하지 않아 기존과 같은
+     * 텍스트가 나온다. 셀 구분자는 셀 사이에만 들어가며 행 맨 앞에는 붙지 않는다. 줄 맨 앞의 파이프는
+     * 문장 분할기가 마크다운 블록 시작으로 인식해 의도하지 않은 경계를 만든다.</p>
+     *
+     * <p>지정 후에는 값을 바꾸지 않으므로 인스턴스를 공유한다.</p>
+     */
+    private static final TextMarks STRUCTURE_MARKS = new TextMarks()
+            .paraSeparatorAnd("\n")
+            .tableRowSeparatorAnd("\n")
+            .tableCellSeparatorAnd(" | ");
 
     @Value("${spring.ai.document.hwpx-path:#{null}}")
     private String hwpxDocumentPath;
@@ -82,7 +101,7 @@ public class EgovHwpxReader implements DocumentReader {
                 hwpxFile,
                 TextExtractMethod.InsertControlTextBetweenParagraphText,
                 false,
-                null
+                STRUCTURE_MARKS
         );
 
         if (content == null || content.trim().isEmpty()) {
