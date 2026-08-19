@@ -123,7 +123,8 @@ public class EgovPdfReader implements DocumentReader {
             String customId = String.format("pdf-%s_%d", safeFilename, i + 1);
             
             // 메타데이터에 원본 ID와 페이지 정보 추가
-            document.getMetadata().put("original_id", document.getId());
+            // 분할 이후에도 원본 문서를 식별할 수 있도록 실행마다 값이 바뀌지 않는 customId 를 담는다
+            document.getMetadata().put("original_id", customId);
             document.getMetadata().put("page_number", i + 1);
             document.getMetadata().put("file_name", filename);
             document.getMetadata().put("source", filename);

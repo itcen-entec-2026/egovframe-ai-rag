@@ -99,6 +99,8 @@ public class EgovHwpReader implements DocumentReader {
         metadata.put("type", "hwp");
         metadata.put("content_length", content.length());
         metadata.put("page_number", 1);
+        // 분할 이후에도 원본 문서를 식별할 수 있도록 문서 id 를 메타데이터에도 담는다
+        metadata.put("original_id", customId);
 
         log.debug("HWP Document ID: {} (길이: {})", customId, content.length());
 
