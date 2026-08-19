@@ -86,7 +86,8 @@ class EgovKoreanChunkingToggleTest {
         @Bean
         EgovEnhancedDocumentTransformer egovEnhancedDocumentTransformer(
                 ObjectProvider<EgovKoreanSentenceSplitter> koreanSentenceSplitterProvider) {
-            return new EgovEnhancedDocumentTransformer(500, 1, koreanSentenceSplitterProvider);
+            // 청크 한도는 이 테스트의 관심사가 아니므로 아무것도 걸러내지 않는 값을 쓴다.
+            return new EgovEnhancedDocumentTransformer(500, 1, 0, Integer.MAX_VALUE, koreanSentenceSplitterProvider);
         }
     }
 }

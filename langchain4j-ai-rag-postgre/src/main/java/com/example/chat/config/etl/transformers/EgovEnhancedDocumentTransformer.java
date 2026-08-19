@@ -12,7 +12,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * 문서 변환기
@@ -23,11 +22,18 @@ import java.util.stream.Collectors;
 public class EgovEnhancedDocumentTransformer implements DocumentTransformer {
 
     private final DocumentSplitter documentSplitter;
+    private final int minChunkLengthToEmbed;
+    private final int maxNumChunks;
 
     public EgovEnhancedDocumentTransformer(
             @Value("${document.chunk-size}") int chunkSize,
             @Value("${document.min-chunk-size-chars}") int minChunkSizeChars,
+            @Value("${document.min-chunk-length-to-embed}") int minChunkLengthToEmbed,
+            @Value("${document.max-num-chunks}") int maxNumChunks,
             ObjectProvider<EgovKoreanSentenceSplitter> koreanSentenceSplitterProvider) {
+
+        this.minChunkLengthToEmbed = minChunkLengthToEmbed;
+        this.maxNumChunks = maxNumChunks;
 
         // LangChain4j의 DocumentSplitter 생성
         // 토큰 기반 분할 (최대 토큰 수, 오버랩)
@@ -40,8 +46,8 @@ public class EgovEnhancedDocumentTransformer implements DocumentTransformer {
         if (koreanSentenceSplitter != null) {
             log.info("문서 분할기 선택 - splitter: {}", this.documentSplitter.getClass().getSimpleName());
         }
-        log.info("EnhancedDocumentTransformer 초기화 - chunkSize: {}, minChunkSize: {}",
-                chunkSize, minChunkSizeChars);
+        log.info("EnhancedDocumentTransformer 초기화 - chunkSize: {}, minChunkSize: {}, minChunkLengthToEmbed: {}, maxNumChunks: {}",
+                chunkSize, minChunkSizeChars, minChunkLengthToEmbed, maxNumChunks);
     }
 
     @Override
@@ -70,11 +76,19 @@ public class EgovEnhancedDocumentTransformer implements DocumentTransformer {
         List<Document> splitDocs = new ArrayList<>();
         for (Document doc : documents) {
             List<TextSegment> segments = documentSplitter.split(doc);
-            // TextSegment를 Document로 변환
-            List<Document> chunks = segments.stream()
-                    .map(segment -> Document.from(segment.text(), segment.metadata()))
-                    .collect(Collectors.toList());
-            splitDocs.addAll(chunks);
+            // TextSegment를 Document로 변환하면서 설정된 청크 한도를 적용한다.
+            int kept = 0;
+            for (TextSegment segment : segments) {
+                if (kept >= maxNumChunks) {
+                    break;
+                }
+                String text = segment.text();
+                if (text == null || text.trim().length() <= minChunkLengthToEmbed) {
+                    continue;
+                }
+                splitDocs.add(Document.from(text, segment.metadata()));
+                kept++;
+            }
         }
         log.info("문서 분할 완료: {}개 청크 생성", splitDocs.size());
 
