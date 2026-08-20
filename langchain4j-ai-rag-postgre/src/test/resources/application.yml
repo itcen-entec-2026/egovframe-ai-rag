@@ -49,16 +49,11 @@ pgvector:
   table-name: document_embeddings
   dimension: 768
   create-table: false
-  distance-type: cosine
 
 # 문서 처리 설정
 document:
   path: file:src/test/resources/non-existent-directory/*.md
   pdf-path: file:src/test/resources/non-existent-directory/*.pdf
-
-  pdf:
-    page-top-margin: 0
-    pages-per-document: 1
 
   chunk-size: 4000
   min-chunk-size-chars: 350
