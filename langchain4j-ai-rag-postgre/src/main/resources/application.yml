@@ -58,8 +58,6 @@ pgvector:
   dimension: 768
   # 인덱스 생성 여부
   create-table: true
-  # 거리 측정 방식 (cosine, euclidean, inner_product)
-  distance-type: cosine
 
 # 문서 처리 설정
 document:
@@ -71,11 +69,6 @@ document:
   hwp-path: file:C:/workspace-test/upload/data/**/*.hwp
   # HWPX 문서 경로. 설정하지 않으면 건너뜀. 예: file:C:/workspace-test/upload/data/**/*.hwpx
   hwpx-path: file:C:/workspace-test/upload/data/**/*.hwpx
-
-  # PDF 리더 설정
-  pdf:
-    page-top-margin: 0
-    pages-per-document: 1
 
   # 문서 변환 설정
   # 청크 크기 설정 (토큰 단위)
