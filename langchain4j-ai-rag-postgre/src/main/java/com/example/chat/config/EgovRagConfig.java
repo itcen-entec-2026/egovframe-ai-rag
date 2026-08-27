@@ -25,7 +25,8 @@ public class EgovRagConfig {
     @Value("${rag.top-k:3}")
     private int topK;
 
-    @Value("${rag.similarity.threshold:0.20}")
+    // application.yml의 값(0.70)과 맞춘 기본값.
+    @Value("${rag.similarity.threshold:0.70}")
     private double similarityThreshold;
 
     @Value("${pgvector.table-name:document_embeddings}")

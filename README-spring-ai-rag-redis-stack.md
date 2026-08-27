@@ -394,7 +394,7 @@ spring:
 rag:
   enable-query-compression: true      # 대화 히스토리 기반 질의 압축
   similarity:
-    threshold: 0.20                   # 유사도 임계값
+    threshold: 0.70                   # 유사도 임계값 (클수록 엄격)
   top-k: 3                            # 검색 결과 개수
 
 # 채팅 메모리 설정

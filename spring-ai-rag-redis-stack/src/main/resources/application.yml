@@ -139,9 +139,8 @@ logging:
 rag:
   enable-query-compression: true
 
-  # RAG 유사도 임계값 설정 (0.0 ~ 1.0)
-  # 실제 검색 유사도: 0.22~0.26 범위 → 임베딩 품질 제한
-  # 임계값을 조정: 0.20 (너무 높으면 검색 결과 없음)
+  # RAG 유사도 임계값 설정 (0.0 ~ 1.0). 값이 클수록 엄격하다.
+  # 주의: Redis가 메타데이터로 돌려주는 `distance`는 유사도가 아니라 (1 - cosine_similarity)다.
   similarity:
     threshold: 0.70
 

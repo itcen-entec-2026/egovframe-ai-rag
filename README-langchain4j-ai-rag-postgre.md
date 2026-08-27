@@ -318,7 +318,7 @@ langchain4j:
 # RAG 설정
 rag:
   similarity:
-    threshold: 0.20               # 유사도 임계값
+    threshold: 0.70               # 유사도 임계값 (클수록 엄격)
   top-k: 3                        # 검색 결과 개수
 
 # 채팅 메모리 설정
