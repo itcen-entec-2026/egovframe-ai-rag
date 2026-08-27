@@ -6,8 +6,10 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -159,7 +161,25 @@ public class EgovDocumentServiceImpl extends EgovAbstractServiceImpl implements 
                 log.info("벡터 저장소 저장 완료");
 
                 // 6단계: 처리된 문서 해시 저장
+                // 청크가 하나도 생성되지 않은 원본에까지 해시를 남기면, 이후 재인덱싱에서
+                // '변경 없음'으로 판정되어 그 문서는 파일을 수정하기 전까지 영구히 색인되지 않는다.
+                // 따라서 실제로 청크가 만들어진 원본만 저장한다.
+                // (리더가 메타데이터에 넣어 둔 original_id로 청크 → 원본을 역추적한다)
+                Set<String> indexedOriginalIds = new HashSet<>();
+                for (Document chunk : transformedDocuments) {
+                    Object originalId = chunk.getMetadata().get("original_id");
+                    if (originalId != null) {
+                        indexedOriginalIds.add(originalId.toString());
+                    }
+                }
+
                 for (Document document : changedDocuments) {
+                    if (!indexedOriginalIds.contains(document.getId())) {
+                        log.warn("문서 '{}' — 생성된 청크가 없어 해시를 저장하지 않습니다. "
+                                + "본문이 임베딩 최소 길이 미만이거나 정규화 후 비어 있을 수 있습니다. "
+                                + "이 문서는 색인되지 않았습니다.", document.getId());
+                        continue;
+                    }
                     saveDocumentHash(document);
                 }
 

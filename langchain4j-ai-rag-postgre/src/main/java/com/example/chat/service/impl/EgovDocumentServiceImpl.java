@@ -147,7 +147,26 @@ public class EgovDocumentServiceImpl extends EgovAbstractServiceImpl implements 
                 log.info("벡터 저장소 저장 완료");
 
                 // 6단계: 처리된 문서 해시 저장
+                // 세그먼트가 하나도 생성되지 않은 원본에까지 해시를 남기면, 이후 재인덱싱에서
+                // '변경 없음'으로 판정되어 그 문서는 파일을 수정하기 전까지 영구히 색인되지 않는다.
+                // 따라서 실제로 세그먼트가 만들어진 원본만 저장한다.
+                // (분할 시 원본 메타데이터가 세그먼트로 복사되므로 metadata "id"로 역추적한다)
+                Set<String> indexedIds = new HashSet<>();
+                for (Document chunk : transformedDocuments) {
+                    String chunkOriginId = chunk.metadata().getString("id");
+                    if (chunkOriginId != null) {
+                        indexedIds.add(chunkOriginId);
+                    }
+                }
+
                 for (Document document : changedDocuments) {
+                    String documentId = document.metadata().getString("id");
+                    if (documentId == null || !indexedIds.contains(documentId)) {
+                        log.warn("문서 '{}' — 생성된 세그먼트가 없어 해시를 저장하지 않습니다. "
+                                + "본문이 임베딩 최소 길이 미만이거나 정규화 후 비어 있을 수 있습니다. "
+                                + "이 문서는 색인되지 않았습니다.", documentId);
+                        continue;
+                    }
                     saveDocumentHash(document);
                 }
 
