@@ -27,7 +27,7 @@ spring:
       summary-min-chunks: 2
       enable-keywords: false
       keyword-count: 5
-      chunk-size: 4000
+      chunk-size: 400
       min-chunk-size-chars: 350
       max-num-chunks: 500
       min-chunk-length-to-embed: 50

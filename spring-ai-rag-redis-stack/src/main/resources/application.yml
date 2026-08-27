@@ -59,8 +59,20 @@ spring:
       enable-keywords: false
       keyword-count: 5
 
-      # 청크 크기 설정 (토큰 단위)
-      chunk-size: 4000
+      # 청크 크기. 단위는 문자가 아니라 cl100k_base 토큰이다.
+      # ※ 이 값은 사용하는 임베딩 모델에 종속된다. 모델을 교체하면 반드시 다시 산정할 것.
+      #   상한을 넘는 청크는 tokenizer.options.truncation:true 때문에 예외도 로그도 없이
+      #   뒷부분이 잘린 채 임베딩된다.
+      #
+      #   산정 방법:
+      #     1. 모델의 토큰 상한 확인 — tokenizer_config.json 의 model_max_length
+      #        (spring.ai.embedding.transformer.tokenizer.options.maxLength 도 이 값에 맞춘다)
+      #     2. cl100k 토큰 → 모델 토큰 환산비 확인 (토크나이저가 다르므로 1:1이 아니다)
+      #     3. chunk-size ≒ 모델 상한 / 환산비, 여기에 안전 마진
+      #
+      #   현재 기본 구성(README의 ko-sroberta 계열 ONNX, 상한 512) 기준:
+      #     한국어에서 모델 토큰이 cl100k보다 약 1.25배 많아 512 / 1.25 ≒ 410 → 400
+      chunk-size: 400
 
       # 한국어 문장경계 인지 청킹 설정
       chunking:
