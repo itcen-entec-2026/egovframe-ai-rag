@@ -36,11 +36,11 @@ public class EgovEnhancedDocumentTransformer implements DocumentTransformer {
         this.maxNumChunks = maxNumChunks;
 
         // LangChain4j의 DocumentSplitter 생성
-        // 토큰 기반 분할 (최대 토큰 수, 오버랩)
+        // 문자 기반 분할
         EgovKoreanSentenceSplitter koreanSentenceSplitter = koreanSentenceSplitterProvider.getIfAvailable();
         this.documentSplitter = koreanSentenceSplitter != null ? koreanSentenceSplitter : DocumentSplitters.recursive(
-                chunkSize, // 최대 토큰 수
-                Math.max(chunkSize / 10, 50) // 오버랩 (청크 크기의 10%)
+                chunkSize, // 최대 문자 수
+                Math.max(chunkSize / 10, 50) // 오버랩 문자 수 (청크 크기의 10%)
         );
 
         if (koreanSentenceSplitter != null) {

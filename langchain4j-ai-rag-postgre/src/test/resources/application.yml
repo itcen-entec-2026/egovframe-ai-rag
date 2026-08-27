@@ -55,7 +55,7 @@ document:
   path: file:src/test/resources/non-existent-directory/*.md
   pdf-path: file:src/test/resources/non-existent-directory/*.pdf
 
-  chunk-size: 4000
+  chunk-size: 800
   min-chunk-size-chars: 350
   max-num-chunks: 500
   min-chunk-length-to-embed: 50
