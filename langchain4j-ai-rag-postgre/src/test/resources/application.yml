@@ -86,11 +86,6 @@ rag:
 chat:
   memory:
     max-messages: 20
-    table-name: chat_memory
-
-# 세션 관리 설정
-session:
-  table-name: chat_sessions
 
 # 로깅 설정
 logging:
