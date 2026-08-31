@@ -17,6 +17,21 @@
 
     <properties>
         <java.version>17</java.version>
+        <!--
+            DJL PyTorch 네이티브 버전.
+
+            아래 두 값은 pytorch-engine jar 안의 pytorch-engine.properties에 있다.
+            추측하지 말고 이 파일을 열어서 확인할 것.
+
+                unzip -p ~/.m2/repository/ai/djl/pytorch/pytorch-engine/0.32.0/pytorch-engine-0.32.0.jar pytorch-engine.properties
+                → djl_version=0.32.0 / pytorch_version=2.5.1
+
+            pytorch-engine 버전은 spring-ai-transformers의 pom에 직접 박혀 있어서
+            Spring AI 버전을 따라 움직인다. 그래서 Spring AI를 올리면 두 값을 다시 확인해야 한다. (참고: 1.0.1과 1.1.8 모두 0.32.0이라
+            Spring AI 1.0.1과 1.1.8 모두 0.32.0이다.
+        -->
+        <djl.version>0.32.0</djl.version>
+        <djl.pytorch.version>2.5.1</djl.pytorch.version>
     </properties>
 
     <repositories>
@@ -79,6 +94,38 @@
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-transformers</artifactId>
+        </dependency>
+
+        <!--
+            DJL PyTorch 네이티브 라이브러리 (폐쇄망 대응)
+
+            이 의존성이 없으면 DJL이 '첫 문서 적재 시점'에 publish.djl.ai에서
+            네이티브(libtorch_cpu.so 등 약 440MB)를 내려받는다. 기동은 성공하고
+            임베딩을 시도할 때 실패하므로 폐쇄망에서 뒤늦게 드러난다.
+
+            (spring-ai-transformers → pytorch-engine에는 네이티브가 들어 있지 않다.
+             DJL LibUtils는 클래스패스에서 native/lib/pytorch.properties를 찾는데,
+             pytorch-engine 자체에는 이 파일이 없어 placeholder로 판정되고
+             downloadPyTorch() 경로를 타게 된다. 아래 native 아티팩트에 이 파일이 들어 있어
+             copyNativeLibraryFromClasspath() 경로로 바뀌며 네트워크가 필요 없어진다.)
+
+            classifier는 아래 프로파일이 '빌드하는 OS' 기준으로 자동 결정한다.
+            빌드 OS와 배포 OS가 다르면 명령행에서 직접 지정할 것:
+                mvn package -Ddjl.pytorch.classifier=linux-x86_64
+        -->
+        <dependency>
+            <groupId>ai.djl.pytorch</groupId>
+            <artifactId>pytorch-native-cpu</artifactId>
+            <version>${djl.pytorch.version}</version>
+            <classifier>${djl.pytorch.classifier}</classifier>
+            <scope>runtime</scope>
+        </dependency>
+        <!-- JNI 브리지. 모든 OS의 바이너리가 한 jar에 들어 있어 classifier가 없다. -->
+        <dependency>
+            <groupId>ai.djl.pytorch</groupId>
+            <artifactId>pytorch-jni</artifactId>
+            <version>${djl.pytorch.version}-${djl.version}</version>
+            <scope>runtime</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.ai</groupId>
@@ -152,6 +199,48 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <!--
+        DJL PyTorch 네이티브의 classifier를 빌드 OS에 맞춰 자동 선택한다.
+
+        주의: 이 프로파일은 '빌드하는 머신'의 OS를 본다. 배포 대상이 다른 OS라면
+              반드시 명령행에서 직접 지정할 것 (명령행 -D가 프로파일 값보다 우선한다).
+                  mvn package -Ddjl.pytorch.classifier=linux-x86_64
+              예: Windows에서 개발하고 Linux 컨테이너로 배포하는 경우.
+              동봉된 Dockerfile은 빌드 스테이지가 Linux 이미지라 자동으로 맞는다.
+
+        DJL 2.5.1이 제공하는 classifier: win-x86_64, linux-x86_64, osx-aarch64
+        (linux-aarch64 / osx-x86_64는 제공되지 않음 — 해당 환경은 런타임 다운로드가 필요하다)
+    -->
+    <profiles>
+        <profile>
+            <id>djl-native-windows</id>
+            <activation>
+                <os><family>windows</family></os>
+            </activation>
+            <properties>
+                <djl.pytorch.classifier>win-x86_64</djl.pytorch.classifier>
+            </properties>
+        </profile>
+        <profile>
+            <id>djl-native-linux</id>
+            <activation>
+                <os><name>linux</name></os>
+            </activation>
+            <properties>
+                <djl.pytorch.classifier>linux-x86_64</djl.pytorch.classifier>
+            </properties>
+        </profile>
+        <profile>
+            <id>djl-native-mac</id>
+            <activation>
+                <os><family>mac</family></os>
+            </activation>
+            <properties>
+                <djl.pytorch.classifier>osx-aarch64</djl.pytorch.classifier>
+            </properties>
+        </profile>
+    </profiles>
 
     <build>
         <plugins>
