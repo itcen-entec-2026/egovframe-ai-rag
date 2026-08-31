@@ -1,6 +1,10 @@
 package com.example.chat.config.etl.writers;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.ai.document.Document;
 import org.springframework.ai.document.DocumentWriter;
@@ -26,22 +30,47 @@ public class EgovVectorStoreWriter implements DocumentWriter {
 
     @Override
     public void accept(List<Document> documents) {
+        accept(documents, List.of());
+    }
+
+    /**
+     * 청크를 벡터 저장소에 저장한다.
+     *
+     * @param documents          저장할 청크. 비어 있어도 삭제는 수행한다.
+     * @param reindexedSourceIds 이번 재색인 대상 원본 문서 id 목록
+     */
+    public void accept(List<Document> documents, Collection<String> reindexedSourceIds) {
         log.info("벡터 저장소에 {}개 문서 저장 시작", documents.size());
-        
+
+        // 삭제 대상 = 재색인 대상 원본 ∪ 이번에 저장할 청크의 원본
+        Set<String> deleteTargetIds = new LinkedHashSet<>();
+        if (reindexedSourceIds != null) {
+            reindexedSourceIds.stream()
+                    .filter(id -> id != null && !id.isBlank())
+                    .forEach(deleteTargetIds::add);
+        }
+        documents.stream()
+                .map(document -> document.getMetadata().get(EgovVectorStoreConfig.ORIGINAL_ID_FIELD))
+                .filter(value -> value instanceof String && !((String) value).isBlank())
+                .map(String.class::cast)
+                .forEach(deleteTargetIds::add);
+
         if (documents.isEmpty()) {
-            log.warn("저장할 문서가 없습니다.");
+            // 저장할 청크가 없어도 옛 청크는 지워야 한다.
+            log.warn("저장할 청크가 없습니다. 기존 청크 삭제만 수행합니다.");
+            removeStaleChunks(deleteTargetIds, 0);
             return;
         }
-        
+
         // 문서 정보 로깅
         for (int i = 0; i < Math.min(documents.size(), 3); i++) {
             Document doc = documents.get(i);
-            log.debug("문서 {}: ID={}, 크기={}바이트, 메타데이터={}", 
+            log.debug("문서 {}: ID={}, 크기={}바이트, 메타데이터={}",
                     i, doc.getId(), doc.getText().length(), doc.getMetadata());
         }
-        
+
         try {
-            removeStaleChunks(documents);
+            removeStaleChunks(deleteTargetIds, documents.size());
 
             redisVectorStore.add(documents);
             log.info("벡터 저장소에 {}개 문서 저장 완료", documents.size());
@@ -86,13 +115,8 @@ public class EgovVectorStoreWriter implements DocumentWriter {
      * 변경 판정도 페이지 단위이므로, 파일명으로 지우면 이번 배치에 없는 페이지까지 사라진다.
      * 그 페이지는 해시가 그대로라 다시 색인되지 않아 영구히 유실된다.</p>
      */
-    private void removeStaleChunks(List<Document> documents) {
-        List<String> originalIds = documents.stream()
-                .map(document -> document.getMetadata().get(EgovVectorStoreConfig.ORIGINAL_ID_FIELD))
-                .filter(value -> value instanceof String && !((String) value).isBlank())
-                .map(String.class::cast)
-                .distinct()
-                .toList();
+    private void removeStaleChunks(Set<String> deleteTargetIds, int inputChunkCount) {
+        List<String> originalIds = new ArrayList<>(deleteTargetIds);
 
         if (originalIds.isEmpty()) {
             log.warn("원본 문서 id가 없어 기존 청크 삭제를 건너뜁니다. 저장은 계속 진행합니다.");
@@ -109,6 +133,6 @@ public class EgovVectorStoreWriter implements DocumentWriter {
             redisVectorStore.delete(expression);
         }
 
-        log.info("기존 청크 삭제 완료: 원본 문서 {}건, 입력 청크 {}개", originalIds.size(), documents.size());
+        log.info("기존 청크 삭제 완료: 원본 문서 {}건, 입력 청크 {}개", originalIds.size(), inputChunkCount);
     }
 } 

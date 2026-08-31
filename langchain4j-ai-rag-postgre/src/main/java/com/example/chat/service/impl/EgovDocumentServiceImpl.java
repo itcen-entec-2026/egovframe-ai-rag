@@ -63,9 +63,12 @@ public class EgovDocumentServiceImpl extends EgovAbstractServiceImpl implements 
     private final Executor executor;
 
     private final AtomicBoolean isProcessing = new AtomicBoolean(false);
+    // 처리를 마친 원본 문서 수. totalCount와 단위를 맞춰야 진행률이 성립한다.
     private final AtomicInteger processedCount = new AtomicInteger(0);
     private final AtomicInteger totalCount = new AtomicInteger(0);
     private final AtomicInteger changedCount = new AtomicInteger(0);
+    // 마지막 처리에서 생성된 청크 수. 원본 문서 수와 단위가 달라 따로 둔다.
+    private final AtomicInteger chunkCount = new AtomicInteger(0);
 
     @Override
     public boolean isProcessing() {
@@ -99,6 +102,7 @@ public class EgovDocumentServiceImpl extends EgovAbstractServiceImpl implements 
         processedCount.set(0);
         totalCount.set(0);
         changedCount.set(0);
+        chunkCount.set(0);
 
         return CompletableFuture.supplyAsync(() -> {
             try {
@@ -126,6 +130,9 @@ public class EgovDocumentServiceImpl extends EgovAbstractServiceImpl implements 
                 log.info("총 {}개의 문서 중 {}개의 변경된 문서를 처리합니다.",
                         allDocuments.size(), changedDocuments.size());
 
+                // 변경 없는 문서는 이 시점에 이미 처리가 끝난 것이므로 진행률에 반영한다.
+                processedCount.set(allDocuments.size() - changedDocuments.size());
+
                 if (changedDocuments.isEmpty()) {
                     log.info("변경된 문서가 없습니다. 인덱싱 작업을 건너뜁니다.");
                     return 0;
@@ -142,8 +149,16 @@ public class EgovDocumentServiceImpl extends EgovAbstractServiceImpl implements 
                 log.info("문서 변환 완료: {}개 청크 생성", transformedDocuments.size());
 
                 // 5단계: 벡터 저장소에 저장
+                // 삭제 대상은 이번 재색인 대상 원본 전체를 넘긴다. 세그먼트에서만 id를 유추하면
+                // 세그먼트가 0개가 된 문서의 옛 벡터가 지워지지 않고 남는다.
+                List<String> reindexedSourceIds = changedDocuments.stream()
+                        .map(document -> document.metadata().getString("id"))
+                        .filter(id -> id != null && !id.isBlank())
+                        .distinct()
+                        .toList();
+
                 log.info("벡터 저장소 저장 시작");
-                egovVectorStoreWriter.write(transformedDocuments);
+                egovVectorStoreWriter.write(transformedDocuments, reindexedSourceIds);
                 log.info("벡터 저장소 저장 완료");
 
                 // 6단계: 처리된 문서 해시 저장
@@ -170,9 +185,11 @@ public class EgovDocumentServiceImpl extends EgovAbstractServiceImpl implements 
                     saveDocumentHash(document);
                 }
 
-                processedCount.set(transformedDocuments.size());
-                log.info("문서 처리 완료: {}개 문서 처리됨 (원본: {}개 → 청크: {}개)",
-                        transformedDocuments.size(), changedDocuments.size(), transformedDocuments.size());
+                // 진행률은 원본 문서 기준이고, 청크 수는 단위가 달라 따로 담는다.
+                processedCount.set(allDocuments.size());
+                chunkCount.set(transformedDocuments.size());
+                log.info("문서 처리 완료: 원본 {}개 중 {}개 처리 → 청크 {}개 생성",
+                        allDocuments.size(), changedDocuments.size(), transformedDocuments.size());
 
                 return transformedDocuments.size();
 
@@ -384,7 +401,24 @@ public class EgovDocumentServiceImpl extends EgovAbstractServiceImpl implements 
                 this.isProcessing(),
                 this.getProcessedCount(),
                 this.getTotalCount(),
-                this.getChangedCount());
+                this.getChangedCount(),
+                hasIndexedDocuments(),
+                chunkCount.get());
+    }
+
+    /**
+     * 색인된 문서가 있는지 확인한다.
+     *
+     * in-memory 카운터는 기동 직후 0이므로, 그것으로 판단하면 색인이 이미 끝나 있어도
+     * 화면에 '문서가 없습니다'가 뜬다. 재기동해도 남아 있는 해시 테이블을 기준으로 판단한다.
+     */
+    private boolean hasIndexedDocuments() {
+        try {
+            return documentHashRepository.count() > 0;
+        } catch (Exception e) {
+            log.warn("색인 문서 존재 여부 확인 실패: {}", e.getMessage());
+            return totalCount.get() > 0;
+        }
     }
 
     /**
