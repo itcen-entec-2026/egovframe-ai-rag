@@ -34,7 +34,7 @@ import org.yaml.snakeyaml.Yaml;
 class EgovYamlBindingTest {
 
     /** 검사 대상 — yml 경로와, 그 아래 키가 모두 읽혀야 하는 블록. */
-    private static final List<String> WATCHED = List.of("pgvector", "document.pdf");
+    private static final List<String> WATCHED = List.of("pgvector", "document.pdf", "chat.memory", "session");
 
     private static final Pattern PLACEHOLDER = Pattern.compile("\\$\\{([A-Za-z0-9._-]+)");
 

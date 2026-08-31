@@ -159,13 +159,6 @@ chat:
   memory:
     # 최대 메시지 수
     max-messages: 20
-    # PostgreSQL 테이블명
-    table-name: chat_memory
-
-# 세션 관리 설정
-session:
-  # PostgreSQL 테이블명
-  table-name: chat_sessions
 
 # 로깅 설정
 logging:
