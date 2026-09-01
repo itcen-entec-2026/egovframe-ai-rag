@@ -1,6 +1,8 @@
 package com.example.chat.config.etl.transformers;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.ai.document.Document;
 import org.springframework.ai.document.DocumentTransformer;
@@ -109,6 +111,8 @@ public class EgovEnhancedDocumentTransformer implements DocumentTransformer {
         
         List<Document> splitDocs = textSplitter.apply(documents);
         log.info("문서 분할 완료: {}개 청크 생성 (청크 크기: {} 토큰)", splitDocs.size(), chunkSize);
+
+        warnIfChunkLimitReached(splitDocs);
         
         // 분할된 청크들의 크기 로깅
         for (int i = 0; i < splitDocs.size(); i++) {
@@ -145,9 +149,38 @@ public class EgovEnhancedDocumentTransformer implements DocumentTransformer {
             log.info("메타데이터 엔리치먼트 완료: {}개 청크", enrichedDocs.size());
             return enrichedDocs;
         } else {
-            log.info("요약 생성 비활성화: {}개 청크 (설정: enableSummary={}, minChunks={})", 
+            log.info("요약 생성 비활성화: {}개 청크 (설정: enableSummary={}, minChunks={})",
                     docsWithKeywords.size(), enableSummary, summaryMinChunks);
             return docsWithKeywords;
         }
+    }
+
+    /**
+     * 청크 수 한도에 도달한 원본 문서를 경고한다.
+     *
+     * maxNumChunks를 넘는 청크는 버려진다. 그 문서는 청크가 0개가 아니므로
+     * 해시가 저장되고, 결과적으로 파일을 수정하기 전까지 버려진 뒷부분은 색인되지 않는다.
+     * 아무 흔적도 남지 않으면 알아챌 방법이 없으므로 여기서 알린다.
+     *
+     * 분할은 Spring AI의 TokenTextSplitter 안에서 일어나 버려진 개수를 알 수 없다.
+     * 그래서 '한도와 같은 수가 나왔다'는 사실로 추정한다. 정확히 한도만큼 나온 정상 문서도
+     * 경고에 걸릴 수 있어 문구를 '도달'로 두었다.
+     */
+    private void warnIfChunkLimitReached(List<Document> splitDocs) {
+        Map<String, Integer> chunksPerOriginal = new LinkedHashMap<>();
+        for (Document chunk : splitDocs) {
+            Object originalId = chunk.getMetadata().get("original_id");
+            if (originalId != null) {
+                chunksPerOriginal.merge(originalId.toString(), 1, Integer::sum);
+            }
+        }
+        chunksPerOriginal.forEach((originalId, count) -> {
+            if (count >= maxNumChunks) {
+                log.warn("문서 '{}' — max-num-chunks({}) 한도에 도달했습니다. 한도를 넘는 청크는 버려지며, "
+                                + "이 문서는 '색인 완료'로 기록되므로 파일을 수정하기 전까지 버려진 부분은 "
+                                + "다시 처리되지 않습니다. 한도를 올리거나 문서를 나누십시오.",
+                        originalId, maxNumChunks);
+            }
+        });
     }
 }

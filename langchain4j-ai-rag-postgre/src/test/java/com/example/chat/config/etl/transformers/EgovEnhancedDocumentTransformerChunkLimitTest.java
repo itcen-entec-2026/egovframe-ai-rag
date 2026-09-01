@@ -23,7 +23,7 @@ class EgovEnhancedDocumentTransformerChunkLimitTest {
     private EgovEnhancedDocumentTransformer transformer(int minChunkLengthToEmbed, int maxNumChunks) {
         ObjectProvider<EgovKoreanSentenceSplitter> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(null);
-        return new EgovEnhancedDocumentTransformer(CHUNK_SIZE, 1, minChunkLengthToEmbed, maxNumChunks, provider);
+        return new EgovEnhancedDocumentTransformer(CHUNK_SIZE, minChunkLengthToEmbed, maxNumChunks, provider);
     }
 
     private Document longDocument() {
